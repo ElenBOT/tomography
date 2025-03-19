@@ -183,6 +183,26 @@ def get_winger_function_func(n_max, m_max, lambd, moments: dict):
     return winger_function
 
 
+def get_annihilation_operator(dim):
+    """Return matirx representation of annihilation operator a in `dim` dimensional Hilbert space.
+    (Generate by AI)
+
+    Example usage:
+    >>> get_annihilation_operator(4)
+    OUTPUT:
+    | array([
+    | [0,      1,      0,      0],
+    | [0,      0, 1.4142,      0],
+    | [0,      0,      0, 1.7321],
+    | [0,      0,      0,      0]
+    | ])
+    """
+    a = np.zeros((dim, dim), dtype=complex)
+    for n in range(1, dim):
+        a[n-1, n] = np.sqrt(n)
+    return a
+
+
 def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int):
     """Computes Tr[rho a†^n a^m] for a given density matrix `rho`.
     (Geneate by AI)
@@ -202,14 +222,6 @@ def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int):
     In quantum physics, Tr[rho A] is the expectation value of A on the 
     state represented by density matirx rho.
     """
-    def get_annihilation_operator(dim):
-        """Return matirx representation of annihilation operator a in `dim`-dimensional Hilbert-space.
-        (Generate by AI)
-        """
-        a = np.zeros((dim, dim), dtype=complex)
-        for n in range(1, dim):
-            a[n-1, n] = np.sqrt(n)
-        return a
     
     # get matirx representation of a and adag
     dim = rho.shape[0]
