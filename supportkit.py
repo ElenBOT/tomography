@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 def plot_moment_bar_diagram(moment, title = 'title'):
     """plot the absolute value of moments, up to 4-th moments.
-    
+    (Geneate by AI)
     
     """
     
@@ -83,6 +83,7 @@ def generate_complex_2dcoord(xy_range, n_pts):
 
 def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
     """Generates a 2D Gaussian distribution.
+    (Geneate by AI)
 
     Args:
         means: A list or numpy array of length 2 representing the means [mean_x, mean_y].
@@ -109,13 +110,12 @@ def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
 def plot_complex_2dfunc(func2d: np.ndarray, 
                         coord2d: np.ndarray,
                         title='title'):
-    """
+    """plot 2d function, with complex coordinate
     
     
     args:
     -- func: the function
     -- coord2d:  complex coordinate
-    
     
     """
     x_mesh, y_mesh = np.real(coord2d), np.imag(coord2d)
@@ -123,7 +123,7 @@ def plot_complex_2dfunc(func2d: np.ndarray,
     y_range = min(y_mesh[:, 0]), max(y_mesh[:, 0])
     
     plt.imshow(func2d, extent=[x_range[0], x_range[1], y_range[0], y_range[1]], 
-               origin='lower', cmap='bwr', aspect='equal')
+               origin='lower', aspect='equal')
     plt.colorbar()
     plt.xlabel('X')
     plt.ylabel('P')
