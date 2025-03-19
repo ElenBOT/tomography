@@ -62,7 +62,24 @@ def plot_moment_bar_diagram(moment, title = 'title'):
 
     ax.grid(False)
     plt.show()
+
+
+def generate_complex_2dcoord(xy_range, n_pts):
+    """Generate mesh of complex coordinate, squared region.
     
+    Example usage:
+    >>> generate_complex_2dcoord(1, 3)
+    OUTPUT:
+    |array([
+    |   [-1.-1.j,  0.-1.j,  1.-1.j],
+    |   [-1.+0.j,  0.+0.j,  1.+0.j],
+    |   [-1.+1.j,  0.+1.j,  1.+1.j]
+    |])
+    """
+    x = np.linspace(-xy_range, xy_range, n_pts)
+    y = np.linspace(-xy_range, xy_range, n_pts)
+    x_mesh, y_mesh = np.meshgrid(x, y)
+    return x_mesh + 1j*y_mesh
 
 def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
     """Generates a 2D Gaussian distribution.
@@ -74,7 +91,7 @@ def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
         num_points: The number of points to generate along each dimension (default: 1024).
 
     Returns:
-        D, S: numpy arrays of Gaussian value and complex coordinates.
+        gassain, complex_2dcoord: numpy arrays of Gaussian value and complex coordinates.
     """
     mean_x, mean_y = means
     sigma_x, sigma_y = sigmas

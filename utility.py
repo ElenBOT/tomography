@@ -106,31 +106,63 @@ def eva_qubit_moments(S, D_S, D_h, highest_order=4) -> dict:
     return moments
 
 
-
-
 def get_winger_function_func(n_max, m_max, lambd, moments: dict):
     """Return a function that takes only one complex number input, alpha, to have W(alpha).
     
+    args:
+    -- lambd: coord to be integrated.
+    -- n_max, m_max: maxima n, m take into account
+    
     By using: [eth-6886-02], p.59. 
     
-    lambd: coord to be intergal
-    
     Example usage:
-    >>> winger_function = get_winger_function_func(2, 2, S, moments)
-    >>> winger_function_value = winger_function(2 + 2j)
+    >>> lambd = generate_complex_2dcoord(5, 50) # generally good enough
+    >>> W = get_winger_function_func(2, 2, lambd, moments)
+    >>> # single complex number as parm
+    >>> value = W(2 + 2j)
+    >>> # complex number mesh as param
+    >>> alpha = generate_complex_2dcoord(2, 150)
+    >>> value2d = W(alpha)
     """
-    def winger_function(alpha):
-        from math import factorial
-
-        exp_term = np.exp(
+    
+    # fraction term is indepedent of alpha, precompute it
+    from math import factorial
+    frac_term = np.zeros_like(lambd, dtype=complex)
+    for n in range(n_max):
+        for m in range(m_max):
+            moment = moments.get(f'a{n}{m}', 0) # for higher order, assume to be zero
+            frac_term += moment * (-np.conj(lambd)**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
+    
+    # precompute delta A, for approximate intergal
+    x_mesh, y_mesh = np.real(lambd), np.imag(lambd)
+    deltax = abs(x_mesh[0, 0] - x_mesh[0, 1])
+    deltay = abs(y_mesh[0, 0] - y_mesh[1, 0])
+    delta_A = deltax * deltay
+    
+    def winger_function(alpha: np.ndarray | complex):
+        """Returns W(alpha) based on moment provide to `get_winger_function_func`.
+        
+        >>> # single complex number as parm
+        >>> value = W(2 + 2j)
+        >>> # complex number mesh as param
+        >>> alpha = generate_complex_2dcoord(2, 150)
+        >>> value2d = W(alpha)
+        
+        """
+        if isinstance(alpha, np.ndarray):
+            # for complex number mesh as param: flatten, brocast, then reshape
+            original_shape = alpha.shape
+            alpha_flattened = alpha.reshape(-1)
+            alpha_reshaped = alpha_flattened[:, np.newaxis, np.newaxis]
+            exp_term = np.exp(
+                -1/2 * abs(lambd)**2 + alpha_reshaped*np.conj(lambd) - np.conj(alpha_reshaped)*lambd
+            )
+            winger_function_values = np.sum(frac_term * exp_term, axis=(1, 2)) * delta_A
+            return winger_function_values.reshape(original_shape)
+        else:
+            exp_term = np.exp(
             -1/2 * abs(lambd)**2 + alpha*np.conj(lambd) - np.conj(alpha)*lambd
-        )
-
-        frac_term = np.zeros_like(lambd, dtype=complex)
-        for n in range(n_max):
-            for m in range(m_max):
-                moment = moments.get(f'a{n}{m}', 0) # for higher order, assume to be zero
-                frac_term += moment * (-np.conj(lambd)**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
-        return np.real(approx_complex_2dint(frac_term * exp_term, lambd) )
+            )
+            return np.sum(frac_term * exp_term) * delta_A
     
     return winger_function
