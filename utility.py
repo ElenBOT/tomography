@@ -6,6 +6,8 @@ ref:
 """
 
 __all__ = [
+    'get_digitized_exp_decay_filter',
+    'temporal_mode_matching',
     'approx_complex_2dint',
     'eva_S_moment',
     'eva_h_moment_anti',
@@ -22,6 +24,30 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.linalg import sqrtm
 
+def get_digitized_exp_decay_filter(decay_rate=0.15, num_points=30, y_shift=0, padding_front=10):
+    """
+    Create an exponential decay filter with tunable parameters.
+    
+    Parameters:
+    num_points (int): Total Number of points of the filter.
+    padding (int): Number of zero-padding points at the beginning.
+    
+    Returns:
+    numpy array: The generated exponential decay filter.
+    """
+    x = np.arange(num_points - padding_front)
+    filter_values = np.exp(-decay_rate * np.maximum(0, x)) + y_shift
+    padded_filter = np.concatenate((np.zeros(padding_front), filter_values))
+    return padded_filter
+
+def temporal_mode_matching(digitized_single, digitized_filter):
+    """Try align the single and filter in time domain, return the best mathcing result.
+    
+    The digitized_single and digitized_filter are convolved without reversed, for convolved value to be 
+    largest, it is taken to be the single and filter matched in the time domain (temporal mode matching).
+    """
+    correlation_result = np.correlate(digitized_single, digitized_filter, mode='valid')
+    return np.max(correlation_result)
 
 def approx_complex_2dint(func2d: np.ndarray, coord2d: np.ndarray) -> float:
     """Approximates the 2D integral of a function using a discrete sum over a rectangular region.
