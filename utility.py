@@ -1,23 +1,79 @@
-"""Utilities that is helpful for implimentation of tomography
+"""Utilities that is helpful for implimentation of tomography.
 
-ref:
-[eth-6886-02]:
+ref: [eth-6886-02]
 
+functions
+==========
+### Temporal mode matching
+    `get_digitized_exp_decay_filter`: Create an exponential decay filter with tunable parameters.
+    `temporal_mode_matching`: Try align the single and filter in time domain, return the best mathcing result.
+ 
+### Evaluate moments
+    `approx_complex_2dint`: Approximates the 2D integral of a function using a discrete sum over a rectangular region.
+    `eva_S_moment`: Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
+    `eva_h_moment_anti`: Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
+    `eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+ 
+### Winger function
+    `get_winger_function_func`: Return a function that can take complex number(s) as input to return winger function value.
+ 
+### Density matrix
+    `get_annihilation_operator`: Return matirx representation of annihilation operator a in `dim` dimensional Hilbert space.
+    `compute_tr_rho_adagn_am`: Computes Tr[rho a†^n a^m] for a given density matrix `rho`.
+    `project_to_density_matrix`: A projection to ensure a Hermitian matrix is a valid density matrix.
+    `mle_density_matrix`: Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
+    `compute_similarities`: Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.
 """
 
+# The docsting habit, it is dynamic, so not every parameter need to 
+# be listed, nor all every function need all the headers.
+def docstring_example():
+    """General description about the function.
+    (supplementary information)
+    
+    Args:
+        parm1 (dtype): description of parm1.
+        parm2 (dtype): description of parm2.
+
+    Returns:
+        return1 (dtype): description of return1.
+        return2 (dtype): description of return2.
+
+    Explanation:
+        An short articel about the function, \
+        may across mutiple lines.
+
+    Example usage:
+    >>> 
+    >>> 
+    >>>
+    OUTPUT:
+    |
+    |
+    |
+        
+    """
+
 __all__ = [
+    ## Temporal mode matching
     'get_digitized_exp_decay_filter',
     'temporal_mode_matching',
+
+    ## Evaluate moments
     'approx_complex_2dint',
     'eva_S_moment',
     'eva_h_moment_anti',
     'eva_qubit_moments',
+
+    ## Winger function
     'get_winger_function_func',
+
+    ## Density matrix
+    'get_annihilation_operator',
     'compute_tr_rho_adagn_am',
     'project_to_density_matrix',
-    'negative_log_likelihood',
-    'fit_density_matrix',
-    'compute_validity',
+    'mle_density_matrix',
+    'compute_similarities',
 ]
 
 import numpy as np
@@ -25,34 +81,43 @@ from scipy.optimize import minimize
 from scipy.linalg import sqrtm
 
 def get_digitized_exp_decay_filter(decay_rate=0.15, num_points=30, y_shift=0, padding_front=10):
-    """
-    Create an exponential decay filter with tunable parameters.
+    """Create an exponential decay filter with tunable parameters.
     
-    Parameters:
-    num_points (int): Total Number of points of the filter.
-    padding (int): Number of zero-padding points at the beginning.
+    Args:
+        num_points (int): Total Number of points of the filter.
+        padding (int): Number of zero-padding points at the beginning.
     
     Returns:
-    numpy array: The generated exponential decay filter.
+        digitized_filter (ndarray): The generated exponential decay filter.
     """
     x = np.arange(num_points - padding_front)
     filter_values = np.exp(-decay_rate * np.maximum(0, x)) + y_shift
     padded_filter = np.concatenate((np.zeros(padding_front), filter_values))
     return padded_filter
 
-def temporal_mode_matching(digitized_single, digitized_filter):
+
+def temporal_mode_matching(digitized_single: np.ndarray, 
+                           digitized_filter: np.ndarray) -> complex:
     """Try align the single and filter in time domain, return the best mathcing result.
     
-    The digitized_single and digitized_filter are convolved without reversed, for convolved value to be 
-    largest, it is taken to be the single and filter matched in the time domain (temporal mode matching).
+    Returns:
+        filtered_value (complex number):
+
+    Explanation:
+        The `digitized_single` and `digitized_filter` are convolved without reversed, for convolved value to be 
+        largest, it is taken to be the single and filter matched in the time domain (temporal mode matching).
     """
     correlation_result = np.correlate(digitized_single, digitized_filter, mode='valid')
     return np.max(correlation_result)
 
-def approx_complex_2dint(func2d: np.ndarray, coord2d: np.ndarray) -> float:
+
+def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> complex:
     """Approximates the 2D integral of a function using a discrete sum over a rectangular region.
     (generate by AI)
     
+    Returns:
+        approxed_int_value (complex number):
+
     Example usage:
     >>> # func to be integrate
     >>> def gaussian_2d(alpha):
@@ -76,45 +141,58 @@ def approx_complex_2dint(func2d: np.ndarray, coord2d: np.ndarray) -> float:
     x_mesh, y_mesh = np.real(coord2d), np.imag(coord2d)
     deltax = abs(x_mesh[0, 0] - x_mesh[0, 1])
     deltay = abs(y_mesh[0, 0] - y_mesh[1, 0])
-    return np.sum(func2d) * deltax * deltay
+    return np.sum(func_value2d) * deltax * deltay
 
-def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray):
+
+def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray) -> complex:
     """Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
     
-    ref:[eth-6886-02], p.53, eqa(3.18).
-    
     Args:
-    -- S: 2d array. As coordinate.
-    -- D: 2d array. The histograme, or denoted as D(S).
+        S (2d numpy array): As coordinate.
+        D (2d numpy array): The histograme, or denoted as D(S).
     
-    It returns ⟨S†^n S^m⟩.
+    Returns:
+        S_moment (complex number): The ⟨S†^n S^m⟩ value.
+
+    Explanation:
+        ref:[eth-6886-02], p.53, eqa(3.18).
     """
     return approx_complex_2dint(S.conj()**n * S**m * D, S)
 
-def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray):
+
+def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray) -> complex:
     """Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
-    
-    ref:[eth-6886-02], p.55, eqa(3.24).
-    
+
     Args:
-    -- S: 2d array. As coordinate.
-    -- D_h: 2d array. The histograme of ref state, or denoted as D_h(S).
+        S (2d numpy array): As coordinate.
+        D (2d numpy array): The histograme, or denoted as D(S).
+
+    Returns:
+        h_moment_anti (complex number): The ⟨h^n h†^m⟩ value.
+
+    Explanation:
+        ref:[eth-6886-02], p.55, eqa(3.24).
     """
     return eva_S_moment(S, n, m, D_h)
 
-def eva_qubit_moments(S, D_S, D_h, highest_order=4) -> dict:
+
+def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
+                      highest_order: int=4) -> dict:
     """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     
     Args:
-    -- S: 2d array. As coordinate.
-    -- D_S: 2d array. The histograme of measurment, or denoted as D_S(S).
-    -- D_h: 2d array. The histograme of ref state, or denoted as D_h(S).
+        S (2d numpy array): As coordinate.
+        D_S (2d numpy array): The histograme of measurment, or denoted as D_S(S).
+        D_h (2d numpy array): The histograme of ref state, or denoted as D_h(S).
     
     Returns:
-    -- A dictionary with key 'a01', 'a13', 'a22', etc...
+        moments (dict): A dictionary with key 'a01', 'a13', 'a22', etc...
+
+    Explanation:
+        By using: [eth-6886-02], p.55, eqa(3.23). 
+        Solve moments from low order to high order one after one.
     
-    By using: [eth-6886-02], p.55, eqa(3.23). 
-    Solve moments from low order to high order one after one.
+    Example usage:
     >>> moments = eva_qubit_moments(S, D_S, D_h, highest_order=4)
     >>> moments['a01']
     
@@ -147,14 +225,19 @@ def eva_qubit_moments(S, D_S, D_h, highest_order=4) -> dict:
     return moments
 
 
-def get_winger_function_func(n_max, m_max, lambd, moments: dict):
-    """Return a function that takes only one complex number input, alpha, to have W(alpha).
+def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments: dict):
+    """Return a function that can take complex number(s) as input to return winger function value.
+
+    Args:
+        lambd (2d numpy array): coord to be integrated.
+        n_max, m_max (int): maxima n, m take into account
     
-    args:
-    -- lambd: coord to be integrated.
-    -- n_max, m_max: maxima n, m take into account
-    
-    By using: [eth-6886-02], p.59. 
+    Returns:
+        winger_function (function): A function take can take complex number(s) as input.
+        and return the winger function value.
+        
+    Explanation:
+        ref: [eth-6886-02], p.59. 
     
     Example usage:
     >>> lambd = generate_complex_2dcoord(5, 50) # generally good enough
@@ -180,15 +263,15 @@ def get_winger_function_func(n_max, m_max, lambd, moments: dict):
     deltay = abs(y_mesh[0, 0] - y_mesh[1, 0])
     delta_A = deltax * deltay
     
-    def winger_function(alpha: np.ndarray | complex):
-        """Returns W(alpha) based on moment provide to `get_winger_function_func`.
+    def winger_function(alpha: np.ndarray | complex) -> np.ndarray | complex:
+        """Returns W(alpha) based on moments provide to `get_winger_function_func`.
         
+        Example usage:
         >>> # single complex number as parm
         >>> value = W(2 + 2j)
         >>> # complex number mesh as param
         >>> alpha = generate_complex_2dcoord(2, 150)
         >>> value2d = W(alpha)
-        
         """
         if isinstance(alpha, np.ndarray):
             # for complex number mesh as param: flatten, brocast, then reshape
@@ -209,9 +292,12 @@ def get_winger_function_func(n_max, m_max, lambd, moments: dict):
     return winger_function
 
 
-def get_annihilation_operator(dim):
+def get_annihilation_operator(dim: int) -> np.ndarray:
     """Return matirx representation of annihilation operator a in `dim` dimensional Hilbert space.
     (Generate by AI)
+
+    Returns:
+        annihilation_operator(2d numpy array): The matrix representation of annihilation operator.
 
     Example usage:
     >>> get_annihilation_operator(4)
@@ -229,9 +315,16 @@ def get_annihilation_operator(dim):
     return a
 
 
-def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int):
+def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int) -> complex:
     """Computes Tr[rho a†^n a^m] for a given density matrix `rho`.
     (Geneate by AI)
+
+    Returns:
+        result (complex number): The Tr[rho a†^n a^m] value.
+
+    Explanation:
+        In quantum physics, Tr[rho A] is the expectation value of A on the \
+        state represented by density matirx rho.
 
     Example usage:
     >>> rho = np.array([
@@ -244,9 +337,6 @@ def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int):
     >>> compute_tr_rho_adagn_am(rho, 1, 1)
     OUTPUT:
     | 0.7 + 0j
-
-    In quantum physics, Tr[rho A] is the expectation value of A on the 
-    state represented by density matirx rho.
     """
     
     # get matirx representation of a and adag
@@ -255,33 +345,46 @@ def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int):
     adag = a.conj().T  
 
     # Compute the expectation value: Tr[rho a†^n a^m]
-    operator = np.dot(adag ** n, a ** m)
-    expectation_value = np.trace(np.dot(rho, operator))
+    # dev log: CANNOT USE `adag ** n`.
+    adag_n = np.linalg.matrix_power(adag, n)
+    a_m = np.linalg.matrix_power(a, m)
+    expectation_value = np.trace(rho @ adag_n @ a_m)
     
     return expectation_value
 
 
-def project_to_density_matrix(H):
+def project_to_density_matrix(matrix: np.ndarray) -> np.ndarray:
     """A projection to ensure a Hermitian matrix is a valid density matrix.
     (Generate by AI)
-    
-    This method is introduced by chatGPT, but I didn't dive into the detail.
-    One can copy this and ask chatGPT again :). So far I know it:
-    1. force it to be hermitian
-    2. force its trace to be 1
-    3. have used a technic called `Cholesky decomposition`.
+
+    Returns:
+        density_matirx (2d numpy array): the density matirx that is ensured to be \
+        hermitien and trace to be 1.
+
+    Explanation:
+        This method is introduced by chatGPT, but I didn't dive into the detail.\
+        One can copy this and ask chatGPT again :). So far I know it:
+        1. force it to be hermitian
+        2. force its trace to be 1
+        3. have used a technic called `Cholesky decomposition`.
     """
-    H = (H + H.conj().T) / 2  # Ensure Hermitian
-    eigvals, eigvecs = np.linalg.eigh(H)
+    matrix = (matrix + matrix.conj().T) / 2  # Ensure Hermitian
+    eigvals, eigvecs = np.linalg.eigh(matrix)
     eigvals = np.clip(eigvals, 0, None)  # Ensure non-negative eigenvalues
     H_proj = eigvecs @ np.diag(eigvals) @ eigvecs.conj().T
     return H_proj / np.trace(H_proj)  # Normalize to ensure Tr(rho) = 1
 
 
 def negative_log_likelihood(rho_flatten, dim, n_max, m_max, moments, stddevi):
-    """Negative log-likelihood function for optimization."""
+    """Negative log-likelihood function for optimization.
+    
+    Explanation:
+        ref: [eth-6886-02], page 60, eqa (3.30).
+        I take negative sign to the function, then the "maximaize" task is then \
+        becomes "minimize", which has much more algorithm to do it.
+    """
     rho_matrix = rho_flatten.reshape(dim, dim)  # Convert vector back to matrix
-    rho_matrix = project_to_density_matrix(rho_matrix)  # Ensure valid rho
+    rho_matrix = project_to_density_matrix(rho_matrix)  # Ensure valid density matrix
     
     func_value = 0
     for n in range(n_max):
@@ -289,24 +392,35 @@ def negative_log_likelihood(rho_flatten, dim, n_max, m_max, moments, stddevi):
             delta_value = stddevi.get(f'd{n}{m}', 1)
             moment_value = moments.get(f'a{n}{m}', 0)
             trace_term = compute_tr_rho_adagn_am(rho_matrix, n, m)
-            func_value -= (1 / delta_value**2) * np.abs(moment_value - trace_term) ** 2
+            # take negative sing so is use +=
+            func_value += (1 / delta_value**2) * np.abs(moment_value - trace_term) ** 2
     return func_value
 
-def fit_density_matrix(dim, n_max, m_max, moments, stddevi):
-    """Optimize the density matrix using Maximum Likelihood Estimation (MLE).
+
+def mle_density_matrix(dim: int, n_max: int, m_max: int, 
+                       moments: dict, stddevi: dict={}) -> np.ndarray:
+    """Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
     (Generate by AI)
     
+    Args:
+        dim (int): dimension of density matrix.
+        stddevi (dict): stander deviation of moment measurment, all be 1 for default.
+
+    Returns:
+        density_matirx (2d numpy array): The MLE result of density matrix.
+
+    Explanation:
+        ref: [eth-6886-02], page 60, eqa (3.30).
+        I take negative sign to the likelihood function, then the "maximaize" task is then \
+        become "minimize", which has much more algorithm to do it.
+
     Exmaple usage:
-    >>> dim = 3  # Dimension of density matrix
-    >>> n_max, m_max = 3, 3 # maximan moment order take into account
-    >>> moments = {'a00': 1, 'a10': 0.5, 'a01': 0.4, 'a11': 0.2}  # Example moment data
-    >>> stddevi = {'d00': 1, 'd10': 1, 'd01': 1, 'd11': 1} # Assume std deviation = 1 for now
-    >>> fit_density_matrix(dim, n_max, m_max, moments, stddevi)
+    >>> moments = {'a00': 1, 'a11': 1} # single photon state |1>
+    >>> mle_density_matrix(2, 3, 3, moments)
     OUTPUT:
     | array([
-    |     [0.18672868, 0.23730362, 0.30910851],
-    |     [0.23730362, 0.30157665, 0.39282969],
-    |     [0.30910851, 0.39282969, 0.51169468]
+    |     [ 3.08148793e-17, -5.55111514e-09],
+    |     [-5.55111514e-09,  1.00000000e+00]
     | ])
     """
     initial_rho = np.eye(dim) / dim  # Start with a maximally mixed state
@@ -320,6 +434,7 @@ def fit_density_matrix(dim, n_max, m_max, moments, stddevi):
     
     optimized_rho = result.x.reshape(dim, dim)  # Reshape back to matrix form
     return project_to_density_matrix(optimized_rho)  # Ensure valid density matrix
+
 
 def compute_similarities(rho1: np.ndarray, rho2: np.ndarray) -> dict:
     """Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.

@@ -1,22 +1,42 @@
 """kit for studying, debuging. But not needed for implimentation.
 
+ref: [eth-6886-02]
+
+functions  
+==========
+### all functions
+    `plot_moments_bar_diagram`: plot the value of moments, up to 4-th moments.
+    `generate_complex_2dcoord`: Generate mesh of complex coordinate, squared region.
+    `generate_2d_gaussian`: Generates a 2D Gaussian distribution and its used coordinate.
+    `plot_complex_2dfunc`: plot 2d function, with complex coordinate.
+    `sym_eva_S_moment`: Returns binomal expension of ⟨S†^n S^m⟩.
+    `sym_eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
 """
 
 
 import sympy as sp
-#sp.init_printing()
+sp.init_printing()
 
 import numpy as np
 from matplotlib import pyplot as plt
+__all__ = [
+    'plot_moments_bar_diagram',
+    'generate_complex_2dcoord',
+    'generate_2d_gaussian',
+    'plot_complex_2dfunc',
+    'sym_eva_S_moment',
+    'sym_eva_qubit_moments',
+]
 
-
-def plot_moment_bar_diagram(moment, title = 'title'):
-    """plot the absolute value of moments, up to 4-th moments.
+def plot_moments_bar_diagram(moment, title = 'title', func = np.abs):
+    """plot the value of moments, up to 4-th moments.
     (Geneate by AI)
     
+    Args:
+        func (function): the function act on moment, default is np.abs
     """
     
-    data = np.abs(np.array([
+    data = func(np.array([
     [moment['a04'],             0,             0,             0,             0],
     [moment['a03'], moment['a13'],             0,             0,             0],
     [moment['a02'], moment['a12'], moment['a22'],             0,             0],
@@ -81,18 +101,20 @@ def generate_complex_2dcoord(xy_range, n_pts):
     x_mesh, y_mesh = np.meshgrid(x, y)
     return x_mesh + 1j*y_mesh
 
+
 def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
-    """Generates a 2D Gaussian distribution.
+    """Generates a 2D Gaussian distribution and its used coordinate.
     (Geneate by AI)
 
     Args:
-        means: A list or numpy array of length 2 representing the means [mean_x, mean_y].
-        sigmas: A list or numpy array of length 2 representing the standard deviations [sigma_x, sigma_y].
-        ranges: A list or numpy array of length 2 representing the ranges [range_x, range_y].
-        num_points: The number of points to generate along each dimension (default: 1024).
+        means (length 2 list): The means [mean_x, mean_y] of gaussian.
+        sigmas (length 2 list): standard deviations [sigma_x, sigma_y] of gaussian.
+        ranges (length 2 list): The ranges [range_x, range_y] of gaussian.
+        num_points (int): The number of points to generate along each dimension (default: 1024).
 
     Returns:
-        gassain, complex_2dcoord: numpy arrays of Gaussian value and complex coordinates.
+        gassain (2d array): Gaussian value correspond to `complex_2dcoord`.
+        complex_2dcoord (2d array): The 2d grid of complex coordinates.
     """
     mean_x, mean_y = means
     sigma_x, sigma_y = sigmas
@@ -107,33 +129,37 @@ def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
     )
     return  z, x + 1j*y
 
-def plot_complex_2dfunc(func2d: np.ndarray, 
+
+def plot_complex_2dfunc(func_value2d: np.ndarray, 
                         coord2d: np.ndarray,
-                        title='title'):
+                        title='title',
+                        cmap='viridis'):
     """plot 2d function, with complex coordinate
     
     
-    args:
-    -- func: the function
-    -- coord2d:  complex coordinate
+    Args:
+        func_value2d (2d numpy array): the function value to be ploy
+        coord2d (2d numpy array): complex coordinate
     
     """
     x_mesh, y_mesh = np.real(coord2d), np.imag(coord2d)
     x_range = min(x_mesh[0, :]), max(x_mesh[0, :])
     y_range = min(y_mesh[:, 0]), max(y_mesh[:, 0])
     
-    plt.imshow(func2d, extent=[x_range[0], x_range[1], y_range[0], y_range[1]], 
-               origin='lower', aspect='equal')
+    plt.imshow(func_value2d, extent=[x_range[0], x_range[1], y_range[0], y_range[1]], 
+               origin='lower', cmap=cmap, aspect='equal')
     plt.colorbar()
     plt.xlabel('X')
     plt.ylabel('P')
     plt.title(title)
     plt.show()
 
+
 def sym_eva_S_moment(n, m):
     """Returns binomal expension of ⟨S†^n S^m⟩.
     
-    ref:[eth-6886-02], p.55, eqa(3.23).
+    Explanation:
+        ref:[eth-6886-02], p.55, eqa(3.23).
     
     Example usage:
     >>> sym_eva_S_moment(1, 1)
@@ -151,15 +177,16 @@ def sym_eva_S_moment(n, m):
     )
     return expr.doit()
 
+
 def sym_eva_qubit_moments(subs_anm=False, highest_order=4) -> dict:
     """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
-    Returns a dictionary with key 'a01', 'a13', 'a22', etc...
     
+    Args:
+        subs_anm (bool): Whether to expand <a^†n a^m> in terms of S, S†, h, h†
     
-    For `subs_anm=True`, the expression of <a^†n a^m> will be expended in terms of S, S†, h, h†
-    
-    By using: [eth-6886-02], p.55, eqa(3.23). 
-    Solve moments from low order to high order one after one.
+    Explanation:
+        ref: [eth-6886-02], p.55, eqa(3.23). Solve moments from low order to \
+        high order one after one.
     
     Example usage:
     >>> moments = sym_eva_qubit_moments()
