@@ -1,9 +1,9 @@
 ## ✨ Photon State Tomography
 In chapter 3 of the PhD thesis [eth-6886-02] by Christopher Eichler, submitted to ETH Zurich, discusses photon state tomography and its technical details.
-I read the theis and in this repo I provides tools to implement the claculations of photon state tomography based his method, in python.
+I read the thesis and in this repo, I provide tools to implement the calculations of photon state tomography based his method, in python.
 > [!NOTE]  
-> It only contains the part that after we obtain the qubit emmision data.
-> For kits about measurement, please consule other resources.
+> It only covers the part after obtaining the qubit emission data.
+> For toolkits related to measurement, please consult other resources.
 > See [overview](#📝-overview-of-photon-state-tomography) at the end of this file to see what this repo have provided.
 
 ![alt text](image.png)
@@ -22,9 +22,9 @@ Directly download the code to use it:
 git clone https://github.com/ElenBOT/tomography.git
 ```
 
-See `example.iypnb` for examples, also, the docsting for each function provides an easy example for itself.
+See `example.ipynb` for examples. Additionally, the docstring for each function provides a simple usage example
 > [!CAUTION] 
-> Some older version python might encounter the syantax error for type annotation of "`|`" symbol.
+> Some older version python might encounter the syntax error for type annotation of "`|`" symbol.
 > Delete type annotation if encountered.
 ---
 
@@ -34,7 +34,7 @@ In short, photon state tomography reconstructs quantum states using statistical 
 With methods to account for noise contributions, it can determining qubit moments $\langle a^{\dagger n} a^m \rangle$, the Wigner function $W(\alpha)$, and the density matrix $\rho$.
 
 1️⃣ **Temporal Mode Matching**:
-   - For emmsion profile, apply a filter in time domain and matching it temporality, to obtain measured result.
+   - For the emission profile, apply a filter in the time domain and match it temporally to obtain the measured result.
    - Single-shot measurement data is obtained as $S = X + iP = a + h^\dagger$, where $a$ represents the qubit mode and $h$ represents noise.
 
  2️⃣ **Histogram Construction**: 
