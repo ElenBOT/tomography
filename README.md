@@ -59,7 +59,7 @@ With methods to account for noise contributions, it can determining qubit moment
 
  5️⃣ **Constructing the Wigner Function**
    - The Wigner function is computed using
-     $W(\alpha) = \sum_{n,m} \int d^2\lambda \frac{ \langle (a^\dagger)^n a^m \rangle (-\lambda^*)^m \lambda^n} {\pi^2 n m} \exp(-\frac{1}{2} |\lambda|^2 + \alpha \lambda^\ast - \alpha^\ast \lambda)$.
+     $W(\alpha) = \sum_{n,m} \int d^2\lambda \frac{ \langle (a^\dagger)^n a^m \rangle (-\lambda^*)^m \lambda^n} {\pi^2 n! m!} \exp(-\frac{1}{2} |\lambda|^2 + \alpha \lambda^\ast - \alpha^\ast \lambda)$.
 
  6️⃣ **Reconstructing the Density Matrix**:
    - The density matrix $\rho$ is obtained using Maximum Likelihood Estimation (MLE), maximizing the likelihood function
