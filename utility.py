@@ -255,7 +255,7 @@ def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments:
     for n in range(n_max):
         for m in range(m_max):
             moment = moments.get(f'a{n}{m}', 0) # for higher order, assume to be zero
-            frac_term += moment * (-np.conj(lambd)**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
+            frac_term += moment * ( (-np.conj(lambd))**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
     
     # precompute delta A, for approximate intergal
     x_mesh, y_mesh = np.real(lambd), np.imag(lambd)
@@ -281,13 +281,13 @@ def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments:
             exp_term = np.exp(
                 -1/2 * abs(lambd)**2 + alpha_reshaped*np.conj(lambd) - np.conj(alpha_reshaped)*lambd
             )
-            winger_function_values = np.sum(frac_term * exp_term, axis=(1, 2)) * delta_A
+            winger_function_values = np.real(np.sum(frac_term * exp_term, axis=(1, 2)) * delta_A)
             return winger_function_values.reshape(original_shape)
         else:
             exp_term = np.exp(
             -1/2 * abs(lambd)**2 + alpha*np.conj(lambd) - np.conj(alpha)*lambd
             )
-            return np.sum(frac_term * exp_term) * delta_A
+            return np.real(np.sum(frac_term * exp_term) * delta_A)
     
     return winger_function
 
