@@ -144,28 +144,32 @@ def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> compl
     return np.sum(func_value2d) * deltax * deltay
 
 
-def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray) -> complex:
+def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray, G: float=1) -> complex:
     """Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
     
     Args:
         S (2d numpy array): As coordinate.
         D (2d numpy array): The histograme, or denoted as D(S).
-    
+        G (float): Gain of the amplifier chain, default is 1.
+        
     Returns:
         S_moment (complex number): The ⟨S†^n S^m⟩ value.
 
     Explanation:
         ref:[eth-6886-02], p.53, eqa(3.18).
     """
-    return approx_complex_2dint(S.conj()**n * S**m * D, S)
+    gain_term = G ** (-(n+m)/2)
+    func = S.conj()**n * S**m * D * gain_term
+    return approx_complex_2dint(func, S)
 
 
-def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray) -> complex:
+def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray, G: float=1) -> complex:
     """Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
 
     Args:
         S (2d numpy array): As coordinate.
         D (2d numpy array): The histograme, or denoted as D(S).
+        G (float): Gain of the amplifier chain, default is 1.
 
     Returns:
         h_moment_anti (complex number): The ⟨h^n h†^m⟩ value.
@@ -173,17 +177,18 @@ def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray) -> complex
     Explanation:
         ref:[eth-6886-02], p.55, eqa(3.24).
     """
-    return eva_S_moment(S, n, m, D_h)
+    return eva_S_moment(S, n, m, D_h, G)
 
 
 def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
-                      highest_order: int=4) -> dict:
+                      G: float=1, highest_order: int=4) -> dict:
     """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     
     Args:
         S (2d numpy array): As coordinate.
         D_S (2d numpy array): The histograme of measurment, or denoted as D_S(S).
         D_h (2d numpy array): The histograme of ref state, or denoted as D_h(S).
+        G (float): Gain of the amplifier chain, default is 1.
     
     Returns:
         moments (dict): A dictionary with key 'a01', 'a13', 'a22', etc...
@@ -196,17 +201,18 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
     >>> moments = eva_qubit_moments(S, D_S, D_h, highest_order=4)
     >>> moments['a01']
     """
-    from scipy.special import comb
+    # <h^n a^†m> will be used many times, like <a^†n a^m> does. So write
+    # a function to reduce duplicate intergal computing.
+    h_moments_anti = {}
     def get_h_moment_anti(n, m):
         """Return <h^n a^†m> value, evaulate it if not computed before."""
         if f'h{n}{m}' not in h_moments_anti:
-            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti(S, n, m, D_h)
+            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti(S, n, m, D_h, G)
         return h_moments_anti[f'h{n}{m}']
-    def get_S_moment(n, m):
-        """Return <S^†n S^m> value, evaulate it if not computed before."""
-        if f'S{n}{m}' not in S_moments:
-            S_moments[f'S{n}{m}'] = eva_S_moment(S, n, m, D_S)
-        return S_moments[f'S{n}{m}']
+    
+    # Compute <a^†n a^m>, by subtacting <S^†n S^m> by all other terms expect <a^†n a^m>
+    # in the expansion of [eth-6886-02], p.55, eqa(3.23).
+    from scipy.special import comb
     def eva_m_anm(n, m):
         to_be_subtract = 0
         for j in range(m+1):
@@ -218,12 +224,11 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
                     of_h = get_h_moment_anti(n-i, m-j)
                     to_be_subtract += comb(n, i) * comb(m, j) * of_a * of_h
 
-        ans = get_S_moment(n, m) - to_be_subtract
+        ans = eva_S_moment(S, n, m, D_S, G) - to_be_subtract
         return ans
 
+    # compute <a^†n a^m> from low order to high order
     qubit_moments = {}
-    h_moments_anti = {}
-    S_moments = {}
     qubit_moments['a00'] = 1 # special case
     for order in range(1, highest_order + 1):
         for n in range(order, -1, -1):  # Iterate over (n, m) pairs
