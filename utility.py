@@ -195,13 +195,18 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
     Example usage:
     >>> moments = eva_qubit_moments(S, D_S, D_h, highest_order=4)
     >>> moments['a01']
-    
     """
     from scipy.special import comb
-    def eva_m_hnm_anti(n, m):
-        return eva_h_moment_anti(S, n, m, D_h)
-    def eva_m_Snm(n, m):
-        return eva_S_moment(S, n, m, D_S)
+    def get_h_moment_anti(n, m):
+        """Return <h^n a^†m> value, evaulate it if not computed before."""
+        if f'h{n}{m}' not in h_moments_anti:
+            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti(S, n, m, D_h)
+        return h_moments_anti[f'h{n}{m}']
+    def get_S_moment(n, m):
+        """Return <S^†n S^m> value, evaulate it if not computed before."""
+        if f'S{n}{m}' not in S_moments:
+            S_moments[f'S{n}{m}'] = eva_S_moment(S, n, m, D_S)
+        return S_moments[f'S{n}{m}']
     def eva_m_anm(n, m):
         to_be_subtract = 0
         for j in range(m+1):
@@ -209,20 +214,22 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
                 if j==m and i==n:
                     pass
                 else:
-                    of_a = moments[f'a{i}{j}'] # moment['aij'] with i<n, j<m must exsit
-                    of_h = eva_m_hnm_anti(n-i, m-j)
+                    of_a = qubit_moments[f'a{i}{j}'] # moment['aij'] with i<n, j<m must exsit
+                    of_h = get_h_moment_anti(n-i, m-j)
                     to_be_subtract += comb(n, i) * comb(m, j) * of_a * of_h
 
-        ans = eva_m_Snm(n, m) - to_be_subtract
+        ans = get_S_moment(n, m) - to_be_subtract
         return ans
 
-    moments = {}
-    moments['a00'] = 1 # special case
+    qubit_moments = {}
+    h_moments_anti = {}
+    S_moments = {}
+    qubit_moments['a00'] = 1 # special case
     for order in range(1, highest_order + 1):
         for n in range(order, -1, -1):  # Iterate over (n, m) pairs
             m = order - n
-            moments[f'a{n}{m}'] = eva_m_anm(n, m)
-    return moments
+            qubit_moments[f'a{n}{m}'] = eva_m_anm(n, m)
+    return qubit_moments
 
 
 def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments: dict):

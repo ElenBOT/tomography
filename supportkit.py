@@ -117,7 +117,6 @@ def plot_moments_bar_diagram(moment, title = 'title', func = np.abs):
     ax.set_title(title)
     ax.set_xlabel('n')
     ax.set_ylabel('m')
-    ax.set_zlabel('Value')
 
     # Set integer-only ticks on x and y axes
     ax.set_xticks(np.arange(0, n, 1))
