@@ -6,7 +6,7 @@ I read the thesis and in this repo, I provide tools to implement the calculation
 > For toolkits related to measurement, please consult other resources.
 > See [overview](##-📝-overview-of-photon-state-tomography) at the end of this file to see what this repo have provided.
 
-![alt text](image.png)
+![alt text](image.jpg)
 ---
 
 ## 📂 File Descriptions
