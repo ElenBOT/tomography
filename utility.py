@@ -237,12 +237,13 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
     return qubit_moments
 
 
-def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments: dict):
+def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: int=4):
     """Return a function that can take complex number(s) as input to return winger function value.
 
     Args:
+        moments (dict): moments, a dict with keys 'a01', 'a11', etc...
         lambd (2d numpy array): coord to be integrated.
-        n_max, m_max (int): maxima n, m take into account
+        highest_order (int): maxima n, m take into account
     
     Returns:
         winger_function (function): A function take can take complex number(s) as input.
@@ -253,7 +254,7 @@ def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments:
     
     Example usage:
     >>> lambd = generate_complex_2dcoord(5, 50) # generally good enough
-    >>> W = get_winger_function_func(2, 2, lambd, moments)
+    >>> W = get_winger_function_func(moments, lambd, highest_order=4)
     >>> # single complex number as parm
     >>> value = W(2 + 2j)
     >>> # complex number mesh as param
@@ -264,8 +265,8 @@ def get_winger_function_func(n_max: int, m_max: int, lambd: np.ndarray, moments:
     # fraction term is indepedent of alpha, precompute it
     from math import factorial
     frac_term = np.zeros_like(lambd, dtype=complex)
-    for n in range(n_max):
-        for m in range(m_max):
+    for n in range(highest_order+1):
+        for m in range(highest_order+1):
             moment = moments.get(f'a{n}{m}', 0) # for higher order, assume to be zero
             frac_term += moment * ( (-np.conj(lambd))**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
     

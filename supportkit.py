@@ -4,30 +4,41 @@ ref: [eth-6886-02]
 
 functions  
 ==========
-### all functions
+### utility functions, imported when `imoprt *`
     `generate_complex_2dcoord`: Generate mesh of complex coordinate, squared region.
     `generate_2d_gaussian`: Generates a 2D Gaussian distribution and its used coordinate.
     `plot_moments_bar_diagram`: plot the value of moments, up to 4-th moments.
     `plot_complex_2dfunc`: plot 2d function, with complex coordinate.
     `plot_complex_2dfunc_in3d`: Plot function as a 3D surface with a wireframe style.
-    `sym_eva_S_moment`: Returns binomal expension of ⟨S†^n S^m⟩.
-    `sym_eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    `eva_S_moment_intermsof_ah`: Returns binomal expension of ⟨S†^n S^m⟩.
+    `eva_qubit_moments_intermsof_sh`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    `eva_fock_basis_expr`: Apply a and adag operator |n> and compute <n|m> to return final result.
+    `eva_qubit_moment_by_ket`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
 """
-
 
 import sympy as sp
 sp.init_printing()
+from sympy.physics.quantum import Bra, Ket, Dagger, Operator
+from sympy import Mul, sqrt
+
+# anilation operator
+a = Operator('a')
+adag = Dagger(a)
 
 import numpy as np
 from matplotlib import pyplot as plt
 __all__ = [
+    'a',
+    'adag',
     'generate_complex_2dcoord',
     'generate_2d_gaussian',
     'plot_moments_bar_diagram',
     'plot_complex_2dfunc',
     'plot_complex_2dfunc_in3d',
-    'sym_eva_S_moment',
-    'sym_eva_qubit_moments',
+    'eva_S_moment_intermsof_ah',
+    'eva_qubit_moments_intermsof_sh',
+    'eva_fock_basis_expr',
+    'eva_qubit_moment_by_ket'
 ]
 
 def generate_complex_2dcoord(xy_range, n_pts):
@@ -76,20 +87,25 @@ def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
     return  z, x + 1j*y
 
 
-def plot_moments_bar_diagram(moment, title = 'title', func = np.abs):
+def plot_moments_bar_diagram(moments:dict, title = 'title', func = np.abs):
     """plot the value of moments, up to 4-th moments.
     (Geneate by AI)
     
     Args:
         func (function): the function act on moment, default is np.abs
     """
-    
+    # add 0 as value if the key is not exist
+    for n in range(5):
+        for m in range(5):
+            if n+m < 5:
+                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', 0)
+
     data = func(np.array([
-    [moment['a04'],             0,             0,             0,             0],
-    [moment['a03'], moment['a13'],             0,             0,             0],
-    [moment['a02'], moment['a12'], moment['a22'],             0,             0],
-    [moment['a01'], moment['a11'], moment['a21'], moment['a31'],             0],
-    [moment['a00'], moment['a10'], moment['a20'], moment['a30'], moment['a40']],
+    [moments['a04'],             0,               0,              0,              0],
+    [moments['a03'], moments['a13'],              0,              0,              0],
+    [moments['a02'], moments['a12'], moments['a22'],              0,              0],
+    [moments['a01'], moments['a11'], moments['a21'], moments['a31'],              0],
+    [moments['a00'], moments['a10'], moments['a20'], moments['a30'], moments['a40']],
     ]))
     
     # Define grid size based on data dimensions
@@ -189,14 +205,14 @@ def plot_complex_2dfunc_in3d(func_value2d: np.ndarray, coord2d: np.ndarray,
     plt.show()
 
 
-def sym_eva_S_moment(n, m):
-    """Returns binomal expension of ⟨S†^n S^m⟩.
+def eva_S_moment_intermsof_ah(n, m):
+    """Returns binomal expension of ⟨S†^n S^m⟩, in terms of a and h.
     
     Explanation:
         ref:[eth-6886-02], p.55, eqa(3.23).
     
     Example usage:
-    >>> sym_eva_S_moment(1, 1)
+    >>> eva_S_moment_intermsof_ah(1, 1)
     OUTPUT:
     |   ah + a†a + a†h† + hh†
     """
@@ -212,8 +228,8 @@ def sym_eva_S_moment(n, m):
     return expr.doit()
 
 
-def sym_eva_qubit_moments(subs_anm=False, highest_order=4) -> dict:
-    """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+def eva_qubit_moments_intermsof_sh(subs_anm=False, highest_order=4) -> dict:
+    """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4. in terms of S and h.
     
     Args:
         subs_anm (bool): Whether to expand <a^†n a^m> in terms of S, S†, h, h†
@@ -223,7 +239,7 @@ def sym_eva_qubit_moments(subs_anm=False, highest_order=4) -> dict:
         high order one after one.
     
     Example usage:
-    >>> moments = sym_eva_qubit_moments()
+    >>> moments = eva_qubit_moments_intermsof_sh()
     >>> moments['a11']
     OUTPUT:
     |   S†S - (ah + a†h† + hh†)
@@ -260,4 +276,77 @@ def sym_eva_qubit_moments(subs_anm=False, highest_order=4) -> dict:
         for n in range(order, -1, -1):  # Iterate over (n, m) pairs
             m = order - n
             moments[f'a{n}{m}'] = eva_m_anm(n, m)
+    return moments
+
+
+def eva_fock_basis_expr(expr, dim:int = 4):
+    """Apply a and adag operator |n> and compute <n|m> to return final result.
+
+    Args:
+        expr: the sympy expression that contains <n|, |n>, a, adag.
+        dim (int): the Hilbert space dimension to be considered. i.e. use |0> ~ |dim-1>.
+
+    >>> ket_state_expr = a * adag * a * (Ket(1) + Ket(0)) / sqrt(2)
+    >>> ket_state = eva_fock_basis_expr(ket_state_expr, dim=2)
+    >>> bra_state = (Bra(1) + Bra(0)) / sqrt(2)
+    >>> inner_product = eva_fock_basis_expr(bra_state * ket_state, dim=2)
+    >>> print(ket_state)
+    >>> print(inner_product)
+    OUTPUT:
+    | |0> / sqrt(2)
+    | 1 / 2
+    """
+    # list all  a|n>, adag|n> within our Hilber space
+    a_adag_rules = {}
+    for n in range(0, dim):
+        a_adag_rules[a * Ket(n)] = sqrt(n) * Ket(n - 1)
+        a_adag_rules[adag * Ket(n)] = sqrt(n + 1) * Ket(n + 1)
+    a_adag_rules[a * Ket(0)] = 0        #    a|0>     = 0
+    a_adag_rules[adag * Ket(dim-1)] = 0 # adag|n_max> = 0
+
+    # substitute a|n>, adag|n>, repeatly untill it is non-changing
+    a_applied_expr = expr.expand().subs(a_adag_rules)
+    while expr != a_applied_expr:
+        expr = a_applied_expr
+        a_applied_expr = expr.expand().subs(a_adag_rules)
+
+    # list all  <n|m> = delta_nm within our Hilber space
+    nm_inner_prod_rules = {}
+    for n in range(0, dim):
+        for m in range(0, dim):
+            # <n|m> and <n|*|m> expression are like sympy.physics.quantum bug
+            if n == m:
+                nm_inner_prod_rules[Bra(n) * Ket(m)] = 1 # <n|m>
+                nm_inner_prod_rules[Mul(Bra(n), Ket(m))] = 1 # <n|*|m>
+            else:
+                nm_inner_prod_rules[Bra(n) * Ket(m)] = 0  # <n|m>
+                nm_inner_prod_rules[Mul(Bra(n), Ket(m))] = 0 # <n|*|m>
+
+    final_expr = a_applied_expr.expand().subs(nm_inner_prod_rules)
+    return final_expr
+
+
+def eva_qubit_moment_by_ket(ket_state, highest_order=4, dim=4):
+    """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+
+    Args:
+        ket_state: the sympy expression for ket state.
+        highest_order (int): the highest_order of moment, default is 4.
+        dim (int): the Hilbert space dimension to be considered. i.e. use |0> ~ |dim-1>.
+    
+    Example usage:
+    >>> ket_state = (Ket(2) + Ket(0)) / sqrt(2)
+    >>> eva_qubit_moment_by_ket(ket_state, highest_order=2)
+    OUTPUT:
+    | {'a00': 1, 'a01': 0, 'a02': sqrt(2)/2, 'a10': 0, 'a11': 1, 'a20': sqrt(2)/2}
+    """
+    bra_state = Dagger(ket_state)
+    
+    moments = {}
+    for n in range(highest_order + 1):
+        for m in range(highest_order + 1):
+            if n + m < highest_order + 1:
+                operator = adag**n * a**m
+                moment = eva_fock_basis_expr(bra_state * operator * ket_state, dim=dim)
+                moments[f'a{n}{m}'] = moment
     return moments
