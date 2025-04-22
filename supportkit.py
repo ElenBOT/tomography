@@ -14,12 +14,14 @@ functions
     `eva_qubit_moments_intermsof_sh`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     `eva_fock_basis_expr`: Apply a and adag operator |n> and compute <n|m> to return final result.
     `eva_qubit_moment_by_ket`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    `eva_density_matrix_by_kets`:Evaluate density matrix by provide ket_states and probs to measure them. 
+    `plot_density_matrix_bar_diagram`: Plots a 3D bar diagram of a density matrix.
 """
 
 import sympy as sp
 sp.init_printing()
 from sympy.physics.quantum import Bra, Ket, Dagger, Operator
-from sympy import Mul, sqrt
+from sympy import Mul, sqrt, Matrix
 
 # anilation operator
 a = Operator('a')
@@ -27,6 +29,10 @@ adag = Dagger(a)
 
 import numpy as np
 from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize
+
 __all__ = [
     'a',
     'adag',
@@ -38,7 +44,9 @@ __all__ = [
     'eva_S_moment_intermsof_ah',
     'eva_qubit_moments_intermsof_sh',
     'eva_fock_basis_expr',
-    'eva_qubit_moment_by_ket'
+    'eva_qubit_moment_by_ket',
+    'eva_density_matrix_by_kets',
+    'plot_density_matrix_bar_diagram',
 ]
 
 def generate_complex_2dcoord(xy_range, n_pts):
@@ -87,61 +95,95 @@ def generate_2d_gaussian(means, sigmas, ranges, num_points=1024):
     return  z, x + 1j*y
 
 
-def plot_moments_bar_diagram(moments:dict, title = 'title', func = np.abs):
-    """plot the value of moments, up to 4-th moments.
-    (Geneate by AI)
-    
+def plot_moments_bar_diagram(
+        moments: dict, 
+        title='title', 
+        phase_coloring: bool = True,
+    ):
+    """Plot the value of moments, up to 4-th moments with phase coloring and a colorbar.
+    (Generate by AI)
+
     Args:
-        func (function): the function act on moment, default is np.abs
+        moments (dict): dictionary of moments e.g. {'a00': value, 'a01': value, ...}
+        title (str): title of the plot
+        phase_coloring (bool): if true, plot in phase coloring. else in magnitude only
     """
-    # add 0 as value if the key is not exist
+    # Fill missing moments with 0
     for n in range(5):
         for m in range(5):
-            if n+m < 5:
-                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', 0)
+            if n + m < 5:
+                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', .0)
 
-    data = func(np.array([
-    [moments['a04'],             0,               0,              0,              0],
-    [moments['a03'], moments['a13'],              0,              0,              0],
-    [moments['a02'], moments['a12'], moments['a22'],              0,              0],
-    [moments['a01'], moments['a11'], moments['a21'], moments['a31'],              0],
-    [moments['a00'], moments['a10'], moments['a20'], moments['a30'], moments['a40']],
-    ]))
-    
-    # Define grid size based on data dimensions
-    n, m = data.shape
+    # Build lower-triangular moment array
+    moment_array = np.array([
+        [moments['a04'],             0,               0,              0,              0],
+        [moments['a03'], moments['a13'],              0,              0,              0],
+        [moments['a02'], moments['a12'], moments['a22'],              0,              0],
+        [moments['a01'], moments['a11'], moments['a21'], moments['a31'],              0],
+        [moments['a00'], moments['a10'], moments['a20'], moments['a30'], moments['a40']],
+    ])
 
-    # Create a mesh grid for the x and y coordinates
+    n, m = moment_array.shape
     x, y = np.meshgrid(np.arange(m), np.arange(n))
-
-    # Flatten the mesh grid and data for plotting
     x = x.flatten()
     y = y.flatten()
-    z = np.zeros_like(x)  # Start bars at z = 0
-    dx = dy = 0.5  # Width of bars
-    dz = data.flatten()  # Heights of bars based on the data
+    z = np.zeros_like(x)
+    dx = dy = 0.5
+    values = moment_array.flatten()
+    dz = np.abs(values)
+    phases = np.angle(values)
 
-    # Plotting
-    fig = plt.figure(figsize=(10, 5))
+    # Normalize phase and create color map
+    norm = Normalize(vmin=-np.pi, vmax=np.pi)
+    if phase_coloring:
+        colors = plt.cm.hsv(norm(phases))
+    else:
+        colors = np.tile(np.array([1.0, 0.0, 0.0, 0.5]), (len(dz), 1))  # red with alpha 0.5
+
+
+    # Compute mask for which bars should be hidden (n + m > 4)
+    index_mask = np.zeros((5, 5), dtype=bool)
+    for n in range(5):
+        for m in range(5):
+            if n + m > 4:
+                index_mask[4 - n, m] = True
+    index_mask = index_mask.flatten()
+
+    # Adjust alpha and edgecolor for visibility
+    alphas = np.where(index_mask, 0.0, 0.5)
+    edgecolors = np.where(index_mask, '#F2F2F2', 'black')
+
+    # Apply alpha to colors
+    colors[:, -1] = alphas  # Modify alpha channel of RGBA colors
+
+    # Plot
+    fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(111, projection='3d')
 
-    # Plot 3D bar chart
-    ax.bar3d(x, y, z, dx, dy, dz, 
-             color=['white' if h == 0 else 'red' for h in dz], 
-             alpha=0.5, 
-             edgecolor='black')
+    for i in range(len(x)):
+        ax.bar3d(x[i], y[i], z[i], dx, dy, dz[i],
+                 color=colors[i],
+                 edgecolor=edgecolors[i],
+                 shade=True)
+
     ax.set_title(title)
     ax.set_xlabel('n')
     ax.set_ylabel('m')
 
-    # Set integer-only ticks on x and y axes
-    ax.set_xticks(np.arange(0, n, 1))
-    ax.set_yticks(np.arange(0, m, 1))
-    ax.set_yticklabels(
-        [''] + ['   ' + str(m - 1 - i) + '' for i in range(m-1)] , 
-        rotation=60, 
-        ha='right'
-    )
+    # Set integer-only ticks
+    ax.set_xticks(np.arange(m))
+    ax.set_yticks(np.arange(n))
+    ax.set_yticklabels([''] + ['   ' + str(m - 1 - i) + '' for i in range(m - 1)],
+                       rotation=60, ha='right')
+
+    if phase_coloring:
+        # Add colorbar for phase
+        mappable = ScalarMappable(cmap='hsv', norm=norm)
+        mappable.set_array([])
+        cbar = plt.colorbar(mappable, ax=ax, shrink=0.7, pad=0.1)
+        cbar.set_label('Phase (radians)')
+        cbar.set_ticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
+        cbar.set_ticklabels([r'$-\pi$', r'$-\pi/2$', '0', r'$\pi/2$', r'$\pi$'])
 
     ax.grid(False)
     plt.show()
@@ -350,3 +392,112 @@ def eva_qubit_moment_by_ket(ket_state, highest_order=4, dim=4):
                 moment = eva_fock_basis_expr(bra_state * operator * ket_state, dim=dim)
                 moments[f'a{n}{m}'] = moment
     return moments
+
+
+def eva_density_matrix_by_kets(
+        ket_states:list, 
+        probs: list, 
+        dim:int =4, 
+        matrix_repr: bool=True
+    ):
+    """Evaluate density matrix by provide ket_states and probs to measure them. 
+
+    Args:
+        ket_states: an array of ket states.
+        probs (int): an array of probability to find coorspond ket.
+        dim (int): the Hilbert space dimension to be considered. i.e. use |0> ~ |dim-1>.
+        matrix_repr (bool): return as matrix representation.
+    
+    Returns:
+        density_matrix (sympy.matrix): the matrix representation of rho as sympy object, \
+        one can use np.array(rho_sympy, dtype=float) to convert it for other use.
+        
+    Explanation:
+        For a system has p_i pf prbability to find the state in |i>, the density matrix \
+        is given as rho = sum_i(p_i*|i><i|).
+
+    Example usages:
+    >>> ket_states = [
+    >>>     (Ket(1) + Ket(2)) / sqrt(2),
+    >>>     (Ket(0) - Ket(2)) / sqrt(2)
+    >>> ]
+    >>> probs = [0.3, 0.7]
+    >>> rho_sympy = eva_density_matrix_by_kets(ket_states, probs, dim=3)
+    >>> rho_numpy = np.array(rho_sympy, dtype=float)
+    >>> rho_sympy
+    OUTPUT:
+    | [ 0.35,    0  -0.35]
+    | [    0, 0.15,  0.15]
+    | [-0.35, 0.15,   0.5]
+    """
+    bra_states = [Dagger(ket_state) for ket_state in ket_states]
+    density_matrix = 0
+    for ket_state, bra_state, prob in zip(ket_states, bra_states, probs):
+        # using Mul is for |n><m| is treated differently as |n>*<m| in sympy
+        density_matrix += prob * Mul(ket_state, bra_state)
+    
+    if not matrix_repr:
+        return density_matrix.expand()
+    else:
+        # compute matrix representation
+        repr = {}
+    for i in range(dim):
+        vec = Matrix([[0] * dim])
+        vec[0, i] = 1
+        repr[Ket(i)] = vec.T
+        repr[Bra(i)] = vec
+    return density_matrix.subs(repr, simultaneous=True)
+
+
+def plot_density_matrix_bar_diagram(rho, title: str='title', phase_coloring: bool = True):
+    """Plots a 3D bar diagram of a density matrix.
+    (Generate by AI)
+    """
+    # ensure numpy array
+    rho = np.array(rho, dtype=complex)
+    rho = np.flip(rho, axis=0)
+    n = rho.shape[0]
+    assert rho.shape == (n, n), "Input must be a square matrix"
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    xpos, ypos = np.meshgrid(np.arange(n), np.arange(n))
+    xpos = xpos.flatten()
+    ypos = ypos.flatten()
+    zpos = np.zeros_like(xpos)
+
+    dz = np.abs(rho.flatten())
+    phases = np.angle(rho.flatten())
+    norm = Normalize(vmin=-np.pi, vmax=np.pi)
+    if phase_coloring:
+        colors = plt.cm.hsv(norm(phases))
+    else:
+        colors = np.tile(np.array([1.0, 0.0, 0.0, 0.5]), (len(dz), 1))  # red with alpha 0.5
+
+    ax.bar3d(xpos, ypos, zpos, dx=0.8, dy=0.8, dz=dz, 
+             color=colors, edgecolor='black', shade=True, alpha=0.5)
+
+    ax.set_xlabel('$|n\\rangle$')
+    ax.set_ylabel('$\\langle m|$')
+    ax.set_title(title)
+
+    # Set integer ticks for x and y axes
+    ax.set_xticks(np.arange(0, n, 1))
+    ax.set_yticks(np.arange(0, n, 1))
+    ax.set_yticklabels(
+        [''] + ['   ' + str(n - 1 - i) + '' for i in range(n-1)] , 
+        rotation=60, 
+        ha='right'
+    )
+
+    if phase_coloring:
+        # Add colorbar for phase
+        mappable = ScalarMappable(cmap='hsv', norm=norm)
+        mappable.set_array([])
+        cbar = plt.colorbar(mappable, ax=ax, shrink=0.7, pad=0.1)
+        cbar.set_label('Phase (radians)')
+        cbar.set_ticks([-np.pi, -np.pi/2, 0, np.pi/2, np.pi])
+        cbar.set_ticklabels([r'$-\pi$', r'$-\pi/2$', '0', r'$\pi/2$', r'$\pi$'])
+
+    plt.show()

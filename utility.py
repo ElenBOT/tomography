@@ -462,6 +462,10 @@ def compute_similarities(rho1: np.ndarray, rho2: np.ndarray) -> dict:
     |  'Trace Distance': 0.14142135623730953, 
     |  'Hilbert-Schmidt Distance': 0.04}
     """
+    # ensure numpy array
+    rho1 = np.array(rho1, dtype=complex)
+    rho2 = np.array(rho2, dtype=complex)
+
     # Ensure Hermitian
     rho1 = (rho1 + rho1.conj().T) / 2
     rho2 = (rho2 + rho2.conj().T) / 2

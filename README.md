@@ -1,6 +1,6 @@
 ## ✨ Photon State Tomography
 In chapter 3 of the PhD thesis [eth-6886-02] by Christopher Eichler, submitted to ETH Zurich, discusses photon state tomography and its technical details.
-I read the thesis and in this repo, I provide tools to implement the calculations of photon state tomography based on his method, in python.
+I read the thesis and in this repo, I provide tools to implement the calculations of photon state tomography based on his method, in python. It also comes with sympy tool to compute density matrix and moments for given ket state in Fock basis (see `examples.ipynb`).
 > [!NOTE]  
 > It only covers the part after obtaining the qubit emission data.
 > For toolkits related to measurement, please consult other resources.
