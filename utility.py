@@ -2,27 +2,29 @@
 
 ref: [eth-6886-02]
 
+
 functions
 ==========
 ### Temporal mode matching
-    `get_digitized_exp_decay_filter`: Create an exponential decay filter with tunable parameters.
     `temporal_mode_matching`: Try align the single and filter in time domain, return the best mathcing result.
- 
-### Evaluate moments
+
+###  moments
     `approx_complex_2dint`: Approximates the 2D integral of a function using a discrete sum over a rectangular region.
-    `eva_S_moment`: Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
-    `eva_h_moment_anti`: Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
     `eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
  
 ### Winger function
     `get_winger_function_func`: Return a function that can take complex number(s) as input to return winger function value.
  
-### Density matrix
+### density matrix
+    `mle_density_matrix`: Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
+    `compute_similarities`: Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.
+
+### helper functions (not imporeted when `import *`)
+    `eva_S_moment`: Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
+    `eva_h_moment_anti`: Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
     `get_annihilation_operator`: Return matirx representation of annihilation operator a in `dim` dimensional Hilbert space.
     `compute_tr_rho_adagn_am`: Computes Tr[rho a†^n a^m] for a given density matrix `rho`.
     `project_to_density_matrix`: A projection to ensure a Hermitian matrix is a valid density matrix.
-    `mle_density_matrix`: Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
-    `compute_similarities`: Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.
 """
 
 # The docsting habit, it is dynamic, so not every parameter need to 
@@ -54,24 +56,19 @@ def docstring_example():
         
     """
 
+# helper functions are not imported when `import *`
 __all__ = [
     ## Temporal mode matching
-    'get_digitized_exp_decay_filter',
     'temporal_mode_matching',
 
     ## Evaluate moments
     'approx_complex_2dint',
-    'eva_S_moment',
-    'eva_h_moment_anti',
     'eva_qubit_moments',
 
     ## Winger function
     'get_winger_function_func',
 
     ## Density matrix
-    'get_annihilation_operator',
-    'compute_tr_rho_adagn_am',
-    'project_to_density_matrix',
     'mle_density_matrix',
     'compute_similarities',
 ]
@@ -79,21 +76,6 @@ __all__ = [
 import numpy as np
 from scipy.optimize import minimize
 from scipy.linalg import sqrtm
-
-def get_digitized_exp_decay_filter(decay_rate=0.15, num_points=30, y_shift=0, padding_front=10):
-    """Create an exponential decay filter with tunable parameters.
-    
-    Args:
-        num_points (int): Total Number of points of the filter.
-        padding (int): Number of zero-padding points at the beginning.
-    
-    Returns:
-        digitized_filter (ndarray): The generated exponential decay filter.
-    """
-    x = np.arange(num_points - padding_front)
-    filter_values = np.exp(-decay_rate * np.maximum(0, x)) + y_shift
-    padded_filter = np.concatenate((np.zeros(padding_front), filter_values))
-    return padded_filter
 
 
 def temporal_mode_matching(digitized_single: np.ndarray, 
@@ -129,7 +111,7 @@ def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> compl
     >>>     np.linspace(-5, 5, 201), # x
     >>>     np.linspace(-5, 5, 201), # y
     >>> )
-    >>> coord2d = x_mesh + 1j*y_mesh
+    >>> coord2d = x_mesh + 1j*y_mesh # or use `generate_complex_2dcoord`
     >>> gaussian_values = gaussian_2d(coord2d)
     >>> 
     >>> # Compute approximate integral
@@ -189,7 +171,8 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
         D_S (2d numpy array): The histograme of measurment, or denoted as D_S(S).
         D_h (2d numpy array): The histograme of ref state, or denoted as D_h(S).
         G (float): Gain of the amplifier chain, default is 1.
-    
+        highest_order (int): highest order, i.e. (n+m) value.
+
     Returns:
         moments (dict): A dictionary with key 'a01', 'a13', 'a22', etc...
 
@@ -198,7 +181,7 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
         Solve moments from low order to high order one after one.
     
     Example usage:
-    >>> moments = eva_qubit_moments(S, D_S, D_h, highest_order=4)
+    >>> moments = eva_qubit_moments(S, D_S, D_h, G=1, highest_order=4)
     >>> moments['a01']
     """
     # <h^n a^†m> will be used many times, like <a^†n a^m> does. So write
@@ -243,7 +226,7 @@ def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: in
     Args:
         moments (dict): moments, a dict with keys 'a01', 'a11', etc...
         lambd (2d numpy array): coord to be integrated.
-        highest_order (int): maxima n, m take into account
+        highest_order (int): maxima moment order take into account
     
     Returns:
         winger_function (function): A function take can take complex number(s) as input.
@@ -261,7 +244,10 @@ def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: in
     >>> alpha = generate_complex_2dcoord(2, 150)
     >>> value2d = W(alpha)
     """
-    
+    # ensure complex number, user might input sympy expression
+    for key, value in moments.items():
+        moments[key] = complex(value)
+
     # fraction term is indepedent of alpha, precompute it
     from math import factorial
     frac_term = np.zeros_like(lambd, dtype=complex)
@@ -410,13 +396,16 @@ def negative_log_likelihood(rho_flatten, dim, n_max, m_max, moments, stddevi):
     return func_value
 
 
-def mle_density_matrix(dim: int, n_max: int, m_max: int, 
-                       moments: dict, stddevi: dict={}) -> np.ndarray:
+def mle_density_matrix(moments: dict, dim: int, 
+                       highest_order: int =4, 
+                       stddevi: dict={}) -> np.ndarray:
     """Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
     (Generate by AI)
     
     Args:
+        moment (dict): a dict with keys 'a01', 'a02', etc..
         dim (int): dimension of density matrix.
+        highest_order (int): maxima moment order take into account
         stddevi (dict): stander deviation of moment measurment, all be 1 for default.
 
     Returns:
@@ -429,16 +418,21 @@ def mle_density_matrix(dim: int, n_max: int, m_max: int,
 
     Exmaple usage:
     >>> moments = {'a00': 1, 'a11': 1} # single photon state |1>
-    >>> mle_density_matrix(2, 3, 3, moments)
+    >>> mle_density_matrix(moments, dim=2)
     OUTPUT:
     | array([
     |     [ 3.08148793e-17, -5.55111514e-09],
     |     [-5.55111514e-09,  1.00000000e+00]
     | ])
     """
+    # ensure complex number, usser might input sympy expression
+    for key, value in moments.items():
+        moments[key] = complex(value)
+
     initial_rho = np.eye(dim) / dim  # Start with a maximally mixed state
     initial_rho_vector = initial_rho.flatten()  # Flatten for optimization
     
+    n_max = m_max = highest_order
     result = minimize(
         negative_log_likelihood, initial_rho_vector, 
         args=(dim, n_max, m_max, moments, stddevi),

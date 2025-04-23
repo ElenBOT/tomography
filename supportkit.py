@@ -2,20 +2,33 @@
 
 ref: [eth-6886-02]
 
-functions  
+
+object and class
+========
+### sympy object
+    `a`, `adag`: annihilation and creation operator, in sympy.
+
+### sympy class
+    `Bra`, `Ket`, `Dagger`: sympy quantum kit.
+
+functions
 ==========
-### utility functions, imported when `imoprt *`
-    `generate_complex_2dcoord`: Generate mesh of complex coordinate, squared region.
-    `generate_2d_gaussian`: Generates a 2D Gaussian distribution and its used coordinate.
+### plotting
     `plot_moments_bar_diagram`: plot the value of moments, up to 4-th moments.
     `plot_complex_2dfunc`: plot 2d function, with complex coordinate.
     `plot_complex_2dfunc_in3d`: Plot function as a 3D surface with a wireframe style.
+    `plot_density_matrix_bar_diagram`: Plots a 3D bar diagram of a density matrix.
+
+### symbolic
     `eva_S_moment_intermsof_ah`: Returns binomal expension of ⟨S†^n S^m⟩.
     `eva_qubit_moments_intermsof_sh`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     `eva_fock_basis_expr`: Apply a and adag operator |n> and compute <n|m> to return final result.
     `eva_qubit_moment_by_ket`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     `eva_density_matrix_by_kets`:Evaluate density matrix by provide ket_states and probs to measure them. 
-    `plot_density_matrix_bar_diagram`: Plots a 3D bar diagram of a density matrix.
+    
+### 2D complex function utility
+    `generate_complex_2dcoord`: Generate mesh of complex coordinate, squared region.
+    `generate_2d_gaussian`: Generates a 2D Gaussian distribution and its used coordinate.
 """
 
 import sympy as sp
@@ -23,7 +36,7 @@ sp.init_printing()
 from sympy.physics.quantum import Bra, Ket, Dagger, Operator
 from sympy import Mul, sqrt, Matrix
 
-# anilation operator
+# annihilation operator
 a = Operator('a')
 adag = Dagger(a)
 
@@ -34,20 +47,50 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 __all__ = [
+    # sympy symbol and class
     'a',
     'adag',
-    'generate_complex_2dcoord',
-    'generate_2d_gaussian',
+    'Bra',
+    'Ket',
+    'Dagger',
+
+    # plotting
     'plot_moments_bar_diagram',
     'plot_complex_2dfunc',
     'plot_complex_2dfunc_in3d',
+    'plot_density_matrix_bar_diagram',
+
+    # symbolic
     'eva_S_moment_intermsof_ah',
     'eva_qubit_moments_intermsof_sh',
     'eva_fock_basis_expr',
     'eva_qubit_moment_by_ket',
     'eva_density_matrix_by_kets',
-    'plot_density_matrix_bar_diagram',
+    
+    # 2D complex function utility
+    'generate_complex_2dcoord',
+    'generate_2d_gaussian',
+    
+    # misc
+    'generate_digitized_exp_decay_filter',
 ]
+
+
+def generate_digitized_exp_decay_filter(decay_rate=0.15, num_points=30, y_shift=0, padding_front=10):
+    """Create an exponential decay filter with tunable parameters.
+    
+    Args:
+        num_points (int): Total Number of points of the filter.
+        padding (int): Number of zero-padding points at the beginning.
+    
+    Returns:
+        digitized_filter (ndarray): The generated exponential decay filter.
+    """
+    x = np.arange(num_points - padding_front)
+    filter_values = np.exp(-decay_rate * np.maximum(0, x)) + y_shift
+    padded_filter = np.concatenate((np.zeros(padding_front), filter_values))
+    return padded_filter
+
 
 def generate_complex_2dcoord(xy_range, n_pts):
     """Generate mesh of complex coordinate, squared region.
@@ -108,6 +151,10 @@ def plot_moments_bar_diagram(
         title (str): title of the plot
         phase_coloring (bool): if true, plot in phase coloring. else in magnitude only
     """
+    # ensure complex number, user might input sympy expression
+    for key, value in moments.items():
+        moments[key] = complex(value)
+
     # Fill missing moments with 0
     for n in range(5):
         for m in range(5):
@@ -410,7 +457,7 @@ def eva_density_matrix_by_kets(
     
     Returns:
         density_matrix (sympy.matrix): the matrix representation of rho as sympy object, \
-        one can use np.array(rho_sympy, dtype=float) to convert it for other use.
+        one can use np.array(rho_sympy, dtype=complex) to convert it for other use.
         
     Explanation:
         For a system has p_i pf prbability to find the state in |i>, the density matrix \
@@ -423,7 +470,7 @@ def eva_density_matrix_by_kets(
     >>> ]
     >>> probs = [0.3, 0.7]
     >>> rho_sympy = eva_density_matrix_by_kets(ket_states, probs, dim=3)
-    >>> rho_numpy = np.array(rho_sympy, dtype=float)
+    >>> rho_numpy = np.array(rho_sympy, dtype=complex)
     >>> rho_sympy
     OUTPUT:
     | [ 0.35,    0  -0.35]
@@ -453,8 +500,9 @@ def plot_density_matrix_bar_diagram(rho, title: str='title', phase_coloring: boo
     """Plots a 3D bar diagram of a density matrix.
     (Generate by AI)
     """
-    # ensure numpy array
+    # ensure numpy array, user might input sympy array
     rho = np.array(rho, dtype=complex)
+
     rho = np.flip(rho, axis=0)
     n = rho.shape[0]
     assert rho.shape == (n, n), "Input must be a square matrix"
