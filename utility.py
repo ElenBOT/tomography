@@ -253,7 +253,7 @@ def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: in
     frac_term = np.zeros_like(lambd, dtype=complex)
     for n in range(highest_order+1):
         for m in range(highest_order+1):
-            moment = moments.get(f'a{n}{m}', 0) # for higher order, assume to be zero
+            moment = moments.get(f'a{n}{m}', 0) # for higher order or missing ones, assume to be zero
             frac_term += moment * ( (-np.conj(lambd))**m * lambd**n) / (np.pi**2 * factorial(n) * factorial(m))
     
     # precompute delta A, for approximate intergal
@@ -341,14 +341,14 @@ def compute_tr_rho_adagn_am(rho: np.ndarray, n: int, m: int) -> complex:
     # get matirx representation of a and adag
     dim = rho.shape[0]
     a = get_annihilation_operator(dim)
-    adag = a.conj().T  
+    adag = a.conj().T 
 
     # Compute the expectation value: Tr[rho a†^n a^m]
     # dev log: CANNOT USE `adag ** n`.
     adag_n = np.linalg.matrix_power(adag, n)
     a_m = np.linalg.matrix_power(a, m)
     expectation_value = np.trace(rho @ adag_n @ a_m)
-    
+    #print(expectation_value)
     return expectation_value
 
 
@@ -382,17 +382,19 @@ def negative_log_likelihood(rho_flatten, dim, n_max, m_max, moments, stddevi):
         I take negative sign to the function, then the "maximaize" task is then \
         becomes "minimize", which has much more algorithm to do it.
     """
-    rho_matrix = rho_flatten.reshape(dim, dim)  # Convert vector back to matrix
+    # devlog: scipy can't use complex, so replace code to do it by real and imag seperately
+    ## rho_matrix = rho_flatten.reshape(dim, dim)  # Convert vector back to matrix
+    rho_matrix = rho_flatten[:dim**2].reshape((dim, dim)) + 1j * rho_flatten[dim**2:].reshape((dim, dim))
     rho_matrix = project_to_density_matrix(rho_matrix)  # Ensure valid density matrix
-    
+
     func_value = 0
-    for n in range(n_max):
-        for m in range(m_max):
+    for n in range(n_max+1):
+        for m in range(m_max+1):
             delta_value = stddevi.get(f'd{n}{m}', 1)
             moment_value = moments.get(f'a{n}{m}', 0)
             trace_term = compute_tr_rho_adagn_am(rho_matrix, n, m)
             # take negative sing so is use +=
-            func_value += (1 / delta_value**2) * np.abs(moment_value - trace_term) ** 2
+            func_value += (1 / delta_value**2) * (np.abs(moment_value - trace_term) ** 2)
     return func_value
 
 
@@ -429,18 +431,23 @@ def mle_density_matrix(moments: dict, dim: int,
     for key, value in moments.items():
         moments[key] = complex(value)
 
-    initial_rho = np.eye(dim) / dim  # Start with a maximally mixed state
-    initial_rho_vector = initial_rho.flatten()  # Flatten for optimization
-    
-    n_max = m_max = highest_order
+    # devlog: scipy can't use complex, so replace code to do it by real and imag seperately
+    initial_rho = np.ones([dim, dim], dtype=complex) / dim  # Start with max coherence state
+    ## initial_rho_vector = initial_rho.flatten()  # Flatten for optimization
+    initial_rho_vector = np.concatenate([initial_rho.real.flatten(), initial_rho.imag.flatten()])
+
+    n_max = m_max = highest_order   
     result = minimize(
-        negative_log_likelihood, initial_rho_vector, 
+        negative_log_likelihood, initial_rho_vector,
         args=(dim, n_max, m_max, moments, stddevi),
         method='L-BFGS-B'
     )
-    
-    optimized_rho = result.x.reshape(dim, dim)  # Reshape back to matrix form
-    return project_to_density_matrix(optimized_rho)  # Ensure valid density matrix
+
+    # devlog: scipy can't use complex, so replace code to do it by real and imag seperately
+    ## optimized_rho = result.x.reshape(dim, dim)  # Reshape back to matrix form 
+    optimized_rho = result.x[:dim**2].reshape((dim, dim)) + 1j * result.x[dim**2:].reshape((dim, dim))
+    optimized_rho = project_to_density_matrix(optimized_rho)
+    return optimized_rho
 
 
 def compute_similarities(rho1: np.ndarray, rho2: np.ndarray) -> dict:

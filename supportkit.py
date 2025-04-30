@@ -18,7 +18,8 @@ functions
     `plot_complex_2dfunc`: plot 2d function, with complex coordinate.
     `plot_complex_2dfunc_in3d`: Plot function as a 3D surface with a wireframe style.
     `plot_density_matrix_bar_diagram`: Plots a 3D bar diagram of a density matrix.
-
+    `plot_moments_bar_diagram_flat`: Plot moment bar diagrme for real and imag part, as 2d bar diagrame.
+    
 ### symbolic
     `eva_S_moment_intermsof_ah`: Returns binomal expension of ⟨S†^n S^m⟩.
     `eva_qubit_moments_intermsof_sh`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
@@ -29,6 +30,9 @@ functions
 ### 2D complex function utility
     `generate_complex_2dcoord`: Generate mesh of complex coordinate, squared region.
     `generate_2d_gaussian`: Generates a 2D Gaussian distribution and its used coordinate.
+
+### misc
+    `eva_qubit_moments_by_rho`: evaluate qubit moment by a given density matrix.
 """
 
 import sympy as sp
@@ -59,6 +63,7 @@ __all__ = [
     'plot_complex_2dfunc',
     'plot_complex_2dfunc_in3d',
     'plot_density_matrix_bar_diagram',
+    'plot_moments_bar_diagram_flat',
 
     # symbolic
     'eva_S_moment_intermsof_ah',
@@ -73,6 +78,7 @@ __all__ = [
     
     # misc
     'generate_digitized_exp_decay_filter',
+    'eva_qubit_moments_by_rho',
 ]
 
 
@@ -204,7 +210,7 @@ def plot_moments_bar_diagram(
     colors[:, -1] = alphas  # Modify alpha channel of RGBA colors
 
     # Plot
-    fig = plt.figure(figsize=(10, 6))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     for i in range(len(x)):
@@ -233,6 +239,61 @@ def plot_moments_bar_diagram(
         cbar.set_ticklabels([r'$-\pi$', r'$-\pi/2$', '0', r'$\pi/2$', r'$\pi$'])
 
     ax.grid(False)
+    plt.show()
+
+
+def plot_moments_bar_diagram_flat(
+        moments: dict, 
+        title='title', 
+        highest_order: int = 4,
+    ):
+    """Plot moment bar diagrme for real and imag part, as 2d bar diagrame.
+    (Generate by AI)
+
+    Example usage:
+    >>> plot_moments_bar_diagram_flat(moments, title='moments', highest_order=6)
+    """
+    # ensure complex number, user might input sympy expression
+    for key, value in moments.items():
+        moments[key] = complex(value)
+
+    # Fill missing moments with 0
+    for n in range(highest_order+1):
+        for m in range(highest_order+1):
+            if n + m < highest_order+1:
+                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', .0)
+
+    # Filter and sort keys by total order (n + m), then by n
+    sorted_items = sorted(
+        [(k, v) for k, v in moments.items() if int(k[1]) + int(k[2]) <= highest_order],
+        key=lambda kv: (int(kv[0][1]) + int(kv[0][2]), int(kv[0][1]))
+    )
+
+    labels = [k[1:] for k, _ in sorted_items]
+    values = np.array([v for _, v in sorted_items])
+    x = np.arange(len(labels))
+    width = 0.35
+
+    plt.figure()
+    plt.bar(x - width/2, np.real(values), width=width, label='Real', color='skyblue')
+    plt.bar(x + width/2, np.imag(values), width=width, label='Imag', color='pink')
+
+    # Add vertical dashed lines to separate total orders
+    total_orders = [int(label[0]) + int(label[1]) for label in labels]
+    prev_order = total_orders[0]
+    for i in range(1, len(total_orders)):
+        current_order = total_orders[i]
+        if current_order != prev_order:
+            plt.axvline(x=i - 0.5, color='gray', linestyle='--', linewidth=1)
+            prev_order = current_order
+
+    plt.xticks(x, labels)
+    plt.title(title)
+    plt.xlabel('$\\{n, m\\}$')
+    plt.ylabel('$\\langle a^{\\dagger n} a^m\\rangle$')
+    plt.legend()
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.xticks(x, labels, rotation=90)
     plt.show()
 
 
@@ -273,7 +334,7 @@ def plot_complex_2dfunc_in3d(func_value2d: np.ndarray, coord2d: np.ndarray,
     """
     x_mesh, y_mesh = np.real(coord2d), np.imag(coord2d)
     
-    fig = plt.figure(figsize=(8, 6))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     
     ax.view_init(elev=elev, azim=azim)
@@ -494,6 +555,17 @@ def eva_density_matrix_by_kets(
         repr[Ket(i)] = vec.T
         repr[Bra(i)] = vec
     return density_matrix.subs(repr, simultaneous=True)
+
+
+def eva_qubit_moments_by_rho(rho, highest_order=4):
+    """evaluate qubit moment by a given density matrix."""
+    from utility import compute_tr_rho_adagn_am
+    moments = {}
+    for n in range(highest_order+1):
+        for m in range(highest_order+1):
+            if n+m < highest_order+1:
+                moments[f'a{n}{m}'] = compute_tr_rho_adagn_am(rho, n, m) 
+    return moments
 
 
 def plot_density_matrix_bar_diagram(rho, title: str='title', phase_coloring: bool = True):
