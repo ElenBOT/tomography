@@ -24,7 +24,7 @@ functions
     `eva_S_moment_intermsof_ah`: Returns binomal expension of ⟨S†^n S^m⟩.
     `eva_qubit_moments_intermsof_sh`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     `eva_fock_basis_expr`: Apply a and adag operator |n> and compute <n|m> to return final result.
-    `eva_qubit_moment_by_ket`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    `eva_qubit_moments_by_ket`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
     `eva_density_matrix_by_kets`:Evaluate density matrix by provide ket_states and probs to measure them. 
     
 ### 2D complex function utility
@@ -69,7 +69,7 @@ __all__ = [
     'eva_S_moment_intermsof_ah',
     'eva_qubit_moments_intermsof_sh',
     'eva_fock_basis_expr',
-    'eva_qubit_moment_by_ket',
+    'eva_qubit_moments_by_ket',
     'eva_density_matrix_by_kets',
     
     # 2D complex function utility
@@ -476,7 +476,7 @@ def eva_fock_basis_expr(expr, dim:int = 4):
     return final_expr
 
 
-def eva_qubit_moment_by_ket(ket_state, highest_order=4, dim=4):
+def eva_qubit_moments_by_ket(ket_state, highest_order=4, dim=4):
     """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
 
     Args:

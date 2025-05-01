@@ -17,7 +17,7 @@ functions
  
 ### density matrix
     `mle_density_matrix`: Find best suitable density matrix to a set of moments using Maximum Likelihood Estimation (MLE).
-    `compute_similarities`: Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.
+    `compute_fidelity`: Compute the fidelity between two density matrices.
 
 ### helper functions (not imporeted when `import *`)
     `eva_S_moment`: Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
@@ -70,7 +70,7 @@ __all__ = [
 
     ## Density matrix
     'mle_density_matrix',
-    'compute_similarities',
+    'compute_fidelity',
 ]
 
 import numpy as np
@@ -450,42 +450,24 @@ def mle_density_matrix(moments: dict, dim: int,
     return optimized_rho
 
 
-def compute_similarities(rho1: np.ndarray, rho2: np.ndarray) -> dict:
-    """Compute the similarities (Fidelity, trace Distance, Hilbert-Schmidt Distance) between two density matrices.
+def compute_fidelity(rho1: np.ndarray, rho2: np.ndarray) -> dict:
+    """Compute fidelity between two density matrices.
     (Generate by AI)
 
     Example usage:
     >>> rho1 = np.array([[0.7, 0.3], [0.3, 0.3]])
     >>> rho2 = np.array([[0.6, 0.4], [0.4, 0.4]])
-    >>> compute_similarities(rho1, rho2)
+    >>> compute_fidelity(rho1, rho2)
     OUTPUT:
-    | {'Fidelity': 0.975959179422654,
-    |  'Trace Distance': 0.14142135623730953, 
-    |  'Hilbert-Schmidt Distance': 0.04}
+    | 0.975959179422654
     """
     # ensure numpy array
     rho1 = np.array(rho1, dtype=complex)
     rho2 = np.array(rho2, dtype=complex)
 
-    # Ensure Hermitian
-    rho1 = (rho1 + rho1.conj().T) / 2
-    rho2 = (rho2 + rho2.conj().T) / 2
-
     # Fidelity: F(rho1, rho2) = (Tr(sqrt(sqrt(rho1) * rho2 * sqrt(rho1))))^2
     sqrt_rho1 = sqrtm(rho1)
-    fidelity = np.trace(sqrtm(sqrt_rho1 @ rho2 @ sqrt_rho1))
-    fidelity = np.abs(fidelity) ** 2  # Ensuring numerical stability
+    inner = np.trace(sqrtm(sqrt_rho1 @ rho2 @ sqrt_rho1))
+    fidelity = np.abs(inner) ** 2  # Ensuring numerical stability
 
-    # Trace Distance: D = (1/2) * Tr(|rho1 - rho2|)
-    trace_distance = 0.5 * np.trace(np.abs(sqrtm((rho1 - rho2).T @ (rho1 - rho2))))
-
-    # Hilbert-Schmidt Distance: D_HS = Tr[(rho1 - rho2)^2]
-    hs_distance = np.trace((rho1 - rho2) @ (rho1 - rho2))
-
-    return {
-        "Fidelity": fidelity,
-        "Trace Distance": np.real(trace_distance),
-        "Hilbert-Schmidt Distance": np.real(hs_distance)
-    }
-
-
+    return fidelity
