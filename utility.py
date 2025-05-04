@@ -236,12 +236,12 @@ def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: in
         ref: [eth-6886-02], p.59. 
     
     Example usage:
-    >>> lambd = generate_complex_2dcoord(5, 50) # generally good enough
+    >>> lambd = generate_complex_2dcoord(5, 51) # generally good enough
     >>> W = get_winger_function_func(moments, lambd, highest_order=4)
     >>> # single complex number as parm
     >>> value = W(2 + 2j)
     >>> # complex number mesh as param
-    >>> alpha = generate_complex_2dcoord(2, 150)
+    >>> alpha = generate_complex_2dcoord(2, 151)
     >>> value2d = W(alpha)
     """
     # ensure complex number, user might input sympy expression
@@ -262,14 +262,14 @@ def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: in
     deltay = abs(y_mesh[0, 0] - y_mesh[1, 0])
     delta_A = deltax * deltay
     
-    def winger_function(alpha: np.ndarray | complex) -> np.ndarray | complex:
+    def winger_function(alpha):
         """Returns W(alpha) based on moments provide to `get_winger_function_func`.
         
         Example usage:
         >>> # single complex number as parm
         >>> value = W(2 + 2j)
         >>> # complex number mesh as param
-        >>> alpha = generate_complex_2dcoord(2, 150)
+        >>> alpha = generate_complex_2dcoord(2, 151)
         >>> value2d = W(alpha)
         """
         if isinstance(alpha, np.ndarray):
