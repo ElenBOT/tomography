@@ -12,6 +12,7 @@ I read the thesis and in this repo, I provide tools to implement the calculation
 ## 📂 File Descriptions
 - **`supportkit.py`**: A utility kit for studying and debugging. Not required for the core implementation.
 - **`utility.py`**: Contains helper functions for the implementation of tomography.
+- **`measurekit.ipynb`**: Provides IQ-demod, temporal mode matching and histogram utilities.
 - **`example.ipynb`**: Provides example use cases for the tools.
 
 ---
