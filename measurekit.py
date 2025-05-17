@@ -317,17 +317,23 @@ class TemporalModeMatcher:
         plt.legend()
         plt.show()
 
-    def perform_tmm(self, signal):
+    def perform_tmm(self, signal, index=None):
         """Perform temporal mode matching with complex signal.
 
+        Arg:
+            index(int): if None, matching, otherwise use it to do inner product.
+        
         1. Use abs(signal) and filter to find the best alignment.
         2. Return the complex inner product at that best-matching position.
         """
-        # match magnitudes to find best alignment
-        correlation_result = np.correlate(
-            np.abs(signal), self.digitized_filter, mode='valid'
-        )
-        best_idx = np.argmax(correlation_result)
+        if index is None:
+            # match magnitudes to find best alignment
+            correlation_result = np.correlate(
+                np.abs(signal), self.digitized_filter, mode='valid'
+            )
+            best_idx = np.argmax(correlation_result)
+        else:
+            best_idx = index
 
         # compute complex inner product for best aligment case
         matched_segment = signal[best_idx : best_idx + len(self.digitized_filter)]
