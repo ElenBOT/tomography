@@ -5,9 +5,6 @@ ref: [eth-6886-02]
 
 functions
 ==========
-### Temporal mode matching
-    `temporal_mode_matching`: Try align the single and filter in time domain, return the best mathcing result.
-
 ###  moments
     `approx_complex_2dint`: Approximates the 2D integral of a function using a discrete sum over a rectangular region.
     `eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
@@ -58,9 +55,6 @@ def docstring_example():
 
 # helper functions are not imported when `import *`
 __all__ = [
-    ## Temporal mode matching
-    'temporal_mode_matching',
-
     ## Evaluate moments
     'approx_complex_2dint',
     'eva_qubit_moments',
@@ -76,22 +70,6 @@ __all__ = [
 import numpy as np
 from scipy.optimize import minimize
 from scipy.linalg import sqrtm
-
-
-def temporal_mode_matching(digitized_single: np.ndarray, 
-                           digitized_filter: np.ndarray) -> complex:
-    """Try align the single and filter in time domain, return the best mathcing result.
-    
-    Returns:
-        filtered_value (complex number):
-
-    Explanation:
-        The `digitized_single` and `digitized_filter` are convolved without reversed, for convolved value to be 
-        largest, it is taken to be the single and filter matched in the time domain (temporal mode matching).
-    """
-    correlation_result = np.correlate(digitized_single, digitized_filter, mode='valid')
-    return np.max(correlation_result)
-
 
 def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> complex:
     """Approximates the 2D integral of a function using a discrete sum over a rectangular region.
