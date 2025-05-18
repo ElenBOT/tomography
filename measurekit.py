@@ -84,18 +84,35 @@ class Histogram:
         if i is not None:
             self.D[i, j] += 1
 
-    def plot(self, title="Histogram", cmap='hot'):
-        """Plot normalized histogram."""
-        plt.imshow(
-            self.get_normalized_histogram(), 
-            extent=[-self.max_x_p, self.max_x_p, -self.max_x_p, self.max_x_p], 
-            origin='lower', cmap=cmap
-        )
-        plt.colorbar(label='Normalized counts')
-        plt.title(title)
-        plt.xlabel('X')
-        plt.ylabel('P')
-        plt.show()
+    def plot(self, title="Histogram", cmap='hot', ax=None):
+        """Plot normalized histogram.
+
+        Example usage:
+        >>> fig, axs = plt.subplots(1, 2, figsize=(11.5, 5), sharey=True)
+        >>> his_s.plot(title="Signal Histogram)", ax=axs[0])
+        >>> his_h.plot(title="Noise Histogram", ax=axs[1])
+        >>> plt.tight_layout()
+        >>> plt.show()
+        """
+        data = self.get_normalized_histogram()
+        extent = [-self.max_x_p, self.max_x_p, -self.max_x_p, self.max_x_p]
+
+        # Use current axis if none provided
+        if ax is None:
+            ax = plt.gca()
+
+        im = ax.imshow(data, extent=extent, origin='lower', cmap=cmap)
+        ax.set_title(title)
+        ax.set_xlabel('X')
+        ax.set_ylabel('P')
+        ax.set_aspect('equal')  # keep square pixels
+
+        # Only add colorbar if using default plotting
+        if ax is plt.gca():
+            plt.colorbar(im, ax=ax, label='Normalized counts')
+
+        return im  # return image object for optional colorbar usage
+
 
 class Demodulator:
     """Optimized demodulation processor with preset parameters.
