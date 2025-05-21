@@ -7,7 +7,7 @@ functions
 ==========
 ###  moments
     `approx_complex_2dint`: Approximates the 2D integral of a function using a discrete sum over a rectangular region.
-    `eva_qubit_moments`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    `eva_qubit_moments_from_hist`: Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
  
 ### Winger function
     `get_winger_function_func`: Return a function that can take complex number(s) as input to return winger function value.
@@ -57,7 +57,7 @@ def docstring_example():
 __all__ = [
     ## Evaluate moments
     'approx_complex_2dint',
-    'eva_qubit_moments',
+    'eva_qubit_moments_from_hist',
 
     ## Winger function
     'get_winger_function_func',
@@ -104,7 +104,7 @@ def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> compl
     return np.sum(func_value2d) * deltax * deltay
 
 
-def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray, G: float=1) -> complex:
+def eva_S_moment_from_hist(S: np.ndarray, n: int, m: int, D: np.ndarray, G: float=1) -> complex:
     """Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
     
     Args:
@@ -123,7 +123,7 @@ def eva_S_moment(S: np.ndarray, n: int, m: int, D: np.ndarray, G: float=1) -> co
     return approx_complex_2dint(func, S)
 
 
-def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray, G: float=1) -> complex:
+def eva_h_moment_anti_from_hist(S: np.ndarray, n: int, m: int, D_h: np.ndarray, G: float=1) -> complex:
     """Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
 
     Args:
@@ -137,12 +137,12 @@ def eva_h_moment_anti(S: np.ndarray, n: int, m: int, D_h: np.ndarray, G: float=1
     Explanation:
         ref:[eth-6886-02], p.55, eqa(3.24).
     """
-    return eva_S_moment(S, n, m, D_h, G)
+    return eva_S_moment_from_hist(S, n, m, D_h, G)
 
 
-def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
+def eva_qubit_moments_from_hist(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
                       G: float=1, highest_order: int=4) -> dict:
-    """Evaluate qubit moments <a^†n a^m> up to a specific order, default is 4.
+    """Evaluate qubit moments <a^†n a^m> from histogram.
     
     Args:
         S (2d numpy array): As coordinate.
@@ -159,7 +159,7 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
         Solve moments from low order to high order one after one.
     
     Example usage:
-    >>> moments = eva_qubit_moments(S, D_S, D_h, G=1, highest_order=4)
+    >>> moments = eva_qubit_moments_from_hist(S, D_S, D_h, G=1, highest_order=4)
     >>> moments['a01']
     """
     # <h^n a^†m> will be used many times, like <a^†n a^m> does. So write
@@ -168,7 +168,7 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
     def get_h_moment_anti(n, m):
         """Return <h^n a^†m> value, evaulate it if not computed before."""
         if f'h{n}{m}' not in h_moments_anti:
-            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti(S, n, m, D_h, G)
+            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti_from_hist(S, n, m, D_h, G)
         return h_moments_anti[f'h{n}{m}']
     
     # Compute <a^†n a^m>, by subtacting <S^†n S^m> by all other terms expect <a^†n a^m>
@@ -185,7 +185,7 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
                     of_h = get_h_moment_anti(n-i, m-j)
                     to_be_subtract += comb(n, i) * comb(m, j) * of_a * of_h
 
-        ans = eva_S_moment(S, n, m, D_S, G) - to_be_subtract
+        ans = eva_S_moment_from_hist(S, n, m, D_S, G) - to_be_subtract
         return ans
 
     # compute <a^†n a^m> from low order to high order
@@ -196,6 +196,66 @@ def eva_qubit_moments(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
             m = order - n
             qubit_moments[f'a{n}{m}'] = eva_m_anm(n, m)
     return qubit_moments
+
+
+def eva_qubit_moments_from_signal(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
+                      G: float=1, highest_order: int=4) -> dict:
+    """Evaluate qubit moments <a^†n a^m> from histogram.
+    
+    Args:
+        S (2d numpy array): As coordinate.
+        D_S (2d numpy array): The histograme of measurment, or denoted as D_S(S).
+        D_h (2d numpy array): The histograme of ref state, or denoted as D_h(S).
+        G (float): Gain of the amplifier chain, default is 1.
+        highest_order (int): highest order, i.e. (n+m) value.
+
+    Returns:
+        moments (dict): A dictionary with key 'a01', 'a13', 'a22', etc...
+
+    Explanation:
+        By using: [eth-6886-02], p.55, eqa(3.23). 
+        Solve moments from low order to high order one after one.
+    
+    Example usage:
+    >>> moments = eva_qubit_moments_from_hist(S, D_S, D_h, G=1, highest_order=4)
+    >>> moments['a01']
+    """
+    # <h^n a^†m> will be used many times, like <a^†n a^m> does. So write
+    # a function to reduce duplicate intergal computing.
+    h_moments_anti = {}
+    def get_h_moment_anti(n, m):
+        """Return <h^n a^†m> value, evaulate it if not computed before."""
+        if f'h{n}{m}' not in h_moments_anti:
+            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti_from_hist(S, n, m, D_h, G)
+        return h_moments_anti[f'h{n}{m}']
+    
+    # Compute <a^†n a^m>, by subtacting <S^†n S^m> by all other terms expect <a^†n a^m>
+    # in the expansion of [eth-6886-02], p.55, eqa(3.23).
+    from scipy.special import comb
+    def eva_m_anm(n, m):
+        to_be_subtract = 0
+        for j in range(m+1):
+            for i in range(n+1):
+                if j==m and i==n:
+                    pass
+                else:
+                    of_a = qubit_moments[f'a{i}{j}'] # moment['aij'] with i<n, j<m must exsit
+                    of_h = get_h_moment_anti(n-i, m-j)
+                    to_be_subtract += comb(n, i) * comb(m, j) * of_a * of_h
+
+        ans = eva_S_moment_from_hist(S, n, m, D_S, G) - to_be_subtract
+        return ans
+
+    # compute <a^†n a^m> from low order to high order
+    qubit_moments = {}
+    qubit_moments['a00'] = 1 # special case
+    for order in range(1, highest_order + 1):
+        for n in range(order, -1, -1):  # Iterate over (n, m) pairs
+            m = order - n
+            qubit_moments[f'a{n}{m}'] = eva_m_anm(n, m)
+    return qubit_moments
+
+
 
 
 def get_winger_function_func(moments: dict, lambd: np.ndarray, highest_order: int=4):

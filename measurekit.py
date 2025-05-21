@@ -17,11 +17,14 @@ from scipy.signal import hilbert
 from warnings import warn
 from math import isclose
 from copy import copy
+import csv
+
 
 __all__ = [
     'Histogram',
     'Demodulator',
     'TemporalModeMatcher',
+    'cpx_to_rphi',
 ]
 
 class Histogram:
@@ -30,11 +33,16 @@ class Histogram:
     Attributes:
         D (np.ndarray): 2D array storing the histogram counts.
         S (np.ndarray): Complex coordinates for the histogram.
-
+        comment (str): a string that is added as common.
+        
     Methods:
         `accumulate_to_histogram`: Accumulate measurement data to histogram. S = X + iP
         `get_normalized_histogram`: Return histogram with maxima value be 1.
         `plot`: Plot normalized histogram.
+        `save_to_csv`: Save histogram to csv, also include comment.
+    
+    Static method:
+        `read_from_csv`: Read histogram from csv, return Histogram object.
 
     Example usage:
     >>> import numpy as np
@@ -51,17 +59,18 @@ class Histogram:
     >>> D, S = his.get_normalized_histogram(), his.S
     >>> his.plot("Random Gaussian Samples in Phase Space")
     """
-    def __init__(self, n_row_col: int, max_x_p: float):
+    def __init__(self, n_row_col: int, max_x_p: float, comment=''):
         """
         Args:
             n_row_col (int): number of rows and columns of histogram
             max_x_p (float): maxima value of X, P, where S = X + iP.
         """
-        self.D = np.zeros([n_row_col, n_row_col])
+        self.D = np.zeros([n_row_col, n_row_col], dtype=int)
         self.n_row_col = n_row_col
         self.max_x_p = max_x_p
         self.bin_size = 2 * max_x_p / n_row_col
         self.S = generate_complex_2dcoord(max_x_p, n_row_col)
+        self.comment = comment
 
     def _s2ij(self, s: complex):
         """Find closest coordinate S = X + iP belongs to. None for exceed."""
@@ -112,6 +121,111 @@ class Histogram:
             plt.colorbar(im, ax=ax, label='Normalized counts')
 
         return im  # return image object for optional colorbar usage
+
+    def resolution_down(self, factor: int):
+        """Return a new Histogram object with reduced resolution.
+
+        The number of rows and columns in the new histogram is determined by
+        dividing the current number of rows/columns by 2**(factor-1).
+
+        Args:
+            factor (int): An integer >= 1.
+                - factor=1: No change in resolution (divides by 2^0=1).
+                - factor=2: Resolution halved (divides by 2^1=2).
+                - factor=3: Resolution quartered (divides by 2^2=4), etc.
+
+        Returns:
+            Histogram: A new Histogram instance with the reduced resolution and aggregated data.
+
+        Raises:
+            ValueError: If factor is less than 1, or if the resulting
+                        number of rows/columns would be less than 1, or if
+                        the current n_row_col is not divisible by the reduction step.
+        """
+        if not isinstance(factor, int) or factor < 1:
+            raise ValueError("factor must be a positive integer (>= 1).")
+
+        if factor == 1:
+            reduction_step = 1
+        else:
+            reduction_step = 2**(factor - 1)
+
+        if self.n_row_col % reduction_step != 0:
+            # This might occur if n_row_col is not a power of 2, and factor implies
+            # a reduction_step (which is a power of 2) that doesn't evenly divide n_row_col.
+            raise ValueError(
+                f"Current n_row_col ({self.n_row_col}) is not divisible by "
+                f"the calculated reduction step ({reduction_step}) derived from factor {factor}."
+            )
+
+        new_n_row_col = self.n_row_col // reduction_step
+
+        if new_n_row_col < 1:
+            raise ValueError(
+                f"Factor {factor} results in a new_n_row_col ({new_n_row_col}) that is less than 1. "
+                f"The reduction is too large for the current histogram size."
+            )
+
+        # Create the new histogram object. Its __init__ will generate the new S coordinates.
+        new_hist = Histogram(n_row_col=new_n_row_col, max_x_p=self.max_x_p)
+
+        # Populate the D matrix of the new histogram by summing counts from blocks
+        # in the original histogram's D matrix.
+        for i_new in range(new_n_row_col):
+            for j_new in range(new_n_row_col):
+                # Define the block in the old histogram corresponding to the new bin
+                start_i_old = i_new * reduction_step
+                end_i_old = start_i_old + reduction_step
+                
+                start_j_old = j_new * reduction_step
+                end_j_old = start_j_old + reduction_step
+                
+                # Sum the counts within this block from the original D matrix
+                block_sum = np.sum(self.D[start_i_old:end_i_old, start_j_old:end_j_old])
+                new_hist.D[i_new, j_new] = block_sum
+                
+        return new_hist
+
+    def save_to_csv(self, filepath: str):
+        """Save histogram data, configuration, and comment to a CSV file."""
+        with open(filepath, mode='w', newline='') as f:
+            writer = csv.writer(f)
+
+            # Write metadata
+            writer.writerow(['n_row_col', 'max_x_p', 'comment'])
+            writer.writerow([self.n_row_col, self.max_x_p, self.comment])
+
+            # Write header for data section
+            writer.writerow(['D'])
+
+            # Write histogram data
+            for row in self.D:
+                writer.writerow(row)
+
+
+    @staticmethod
+    def read_from_csv(filepath: str):
+        """Read histogram object from a CSV file (including metadata and comment)."""
+        with open(filepath, mode='r') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+        # Extract metadata
+        header = rows[0]
+        values = rows[1]
+        n_row_col = int(values[0])
+        max_x_p = float(values[1])
+        comment = values[2] if len(values) > 2 else ''
+
+        # Create new Histogram
+        hist = Histogram(n_row_col=n_row_col, max_x_p=max_x_p, comment=comment)
+
+        # Parse histogram data
+        d_data = rows[3:]  # Skip metadata and 'D' label row
+        for i, row in enumerate(d_data):
+            hist.D[i, :] = np.array(row, dtype=int)
+
+        return hist
 
 
 class Demodulator:
@@ -270,17 +384,17 @@ class TemporalModeMatcher:
         """Set sampling rate.
 
         Example usage:
-        >>> tmmer = TemporalModeMatcher(fs=1e9)
-        >>> tmmer.regist_filter(avg_sig)
-        >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
-        >>> tmmer.plot_tmm_info(signal)
+        >>> tmm = TemporalModeMatcher(fs=1e9)
+        >>> tmm.regist_filter(avg_sig)
+        >>> tmm.regist_filter(tmmer.pad_or_trim_filter())
+        >>> tmm.plot_tmm_info(signal)
         """
         self.fs = fs
 
     def regist_filter(self, digitized_filter):
         """Regist a filter, it will normalize it for you.
         
-        The normalization goes "int sum |f[n]|^2 / fs = 1".
+        The normalization goes "int sum( |f[n]|^2  dt ) = 1, dt = 1/fs".
         """
         norm_factor = np.sqrt(np.sum(np.abs(digitized_filter)**2) / self.fs)
         self.digitized_filter = digitized_filter / norm_factor
@@ -356,3 +470,10 @@ class TemporalModeMatcher:
         matched_segment = signal[best_idx : best_idx + len(self.digitized_filter)]
         inner_product = np.dot(self.digitized_filter, matched_segment)
         return inner_product
+
+
+def cpx_to_rphi(complex_numbers):
+    """Return polar coordinate (r, phi) for complex number(s)."""
+    r = np.abs(complex_numbers)
+    phi = np.angle(np.mean(complex_numbers))
+    return r, phi
