@@ -1,7 +1,12 @@
-"""Utilities that is helpful for implimentation of tomography.
+"""Utilities that is helpful for post-processing of tomography, like moment, density matirx and Winger function.
 
 ref: [eth-6886-02]
 
+This module provides tools to do post processing on histogram. It may goes as
+1. Compute moments from histogram
+2. Compute Winger function from moments
+3. Fit density matirx from moments
+4. Compute fidelity between theoratical ones.
 
 functions
 ==========

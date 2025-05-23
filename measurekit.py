@@ -1,7 +1,13 @@
-"""Kits for measuring photon state tomography data.
+"""Kits for the measurment of photon state tomography data.
 
-This module provides tools for processing and visualizing quantum optical measurement data,
+ref: [eth-6886-02]
+
+This module provides tools to do tomography measurement, 
 including demodulation, temporal mode matching, and histogram visualization.
+The measurement may goes like:
+1. Measure an averaged emission, by the help of `Demodulator`.
+2. Use averaged emission to build filter function, regist into `TemporalModeMatcher`.
+3. Perform many single shot measurement, each time accumulate the count into `Histogram` object.
 
 classes
 ==========
@@ -10,7 +16,7 @@ classes
     `TemporalModeMatcher`: Handles temporal mode matching operations.
 """
 
-from supportkit import generate_complex_2dcoord
+from .supportkit import generate_complex_2dcoord
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.signal import hilbert

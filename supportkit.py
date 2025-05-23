@@ -1,7 +1,10 @@
-"""kit for studying, debuging. But not needed for implimentation.
+"""kits for studying, debuging, obtaining in-theory conclusion and plotting.
 
 ref: [eth-6886-02]
 
+This module provides tools for plotting the 2D functions and moments. 
+And many kits to compute tomography obtained information theoretically,
+can be used to evaluate fidelity, also helpful for debugging.
 
 object and class
 ========
@@ -559,7 +562,7 @@ def eva_density_matrix_by_kets(
 
 def eva_qubit_moments_by_rho(rho, highest_order=4):
     """evaluate qubit moment by a given density matrix."""
-    from utility import compute_tr_rho_adagn_am
+    from .postprocess import compute_tr_rho_adagn_am
     moments = {}
     for n in range(highest_order+1):
         for m in range(highest_order+1):
