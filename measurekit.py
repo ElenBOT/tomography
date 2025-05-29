@@ -284,6 +284,7 @@ class Demodulator:
         self.n_samples = n_samples
         self.t = np.arange(n_samples) * 1/fs
         self.cpx_lo = np.exp(-1j*2*np.pi*fc*self.t)
+        self.demod_buffer = np.zeros(n_samples, dtype=np.complex128)
 
         # for fast_shift_demod
         self.quad_shift_pts = int(fs / fc / 4)
@@ -317,19 +318,69 @@ class Demodulator:
         demoded = analytic * self.cpx_lo
         return demoded
 
-    def fast_shift_demod(self, signal, second_order=True):
-        "Demod with duplicate shifted signal, to approximate Hilbert transform."
-        # forward shift
-        pi_half_shifted = np.zeros_like(signal)
-        pi_half_shifted[self.quad_shift_pts:] = signal[:-self.quad_shift_pts]
-        if not second_order: 
-            return (signal + 1j*pi_half_shifted) * self.cpx_lo
+    ## Devlog: not faster then using for loop, although I don't know why
+    # def fast_shift_demod_batch(self, signal, second_order=True, copy=True):
+    #     """Demod a batch of signals with approximated Hilbert transform. See docstring of `fast_shift_demod`.
+        
+    #     Args:
+    #         signal (2d np.array): Signal for many traces. If 1d, promote to 2d with 1 trace.
+    #         second_order (bool): use second order approximation, see docsting.
+    #     Return:
+    #         demodulated (2d np.array): n-th elem is n-th demodulated trace.
+    #     """
+    #     # load signal into buffer, no allocation needed
+    #     self.batch_demod_buffer.real[:, :] = signal # inplace copy of real part
+    #     self.batch_demod_buffer.imag[:, :] = 0      # clear imaginary part
 
-        # backward shift
-        nag_pi_half_shifted = np.zeros_like(signal)
-        nag_pi_half_shifted[:-self.quad_shift_pts] = signal[self.quad_shift_pts:]
-        cpx_signal = signal + 1j*(pi_half_shifted - nag_pi_half_shifted)/2
-        return cpx_signal * self.cpx_lo
+    #     if not second_order:
+    #         # first order approximation, a(t) = x(t) + j*f(t)
+    #         self.batch_demod_buffer.imag[:, self.quad_shift_pts:] = signal[:, :-self.quad_shift_pts]
+    #     else:
+    #         # second order approximation, a(t) = x(t) + j*[f(t) - b(t)] / 2
+    #         self.batch_demod_buffer.imag[:, self.quad_shift_pts:]  =  0.5 * signal[:, :-self.quad_shift_pts]
+    #         self.batch_demod_buffer.imag[:, :-self.quad_shift_pts] -= 0.5 * signal[:, self.quad_shift_pts:]
+
+    #     # now buf is analytic signal a(t), demod by a(t) * exp(-j omega t)        
+    #     if copy:
+    #         return (self.batch_demod_buffer * self.cpx_lo[None, :])  # new array allocated here
+    #     else:
+    #         # in-place mutiplication, no allocation
+    #         self.batch_demod_buffer *= self.cpx_lo[None, :]
+    #         return self.batch_demod_buffer
+    
+
+    def fast_shift_demod(self, signal, second_order=True, copy=True):
+        """Demod with duplicate shifted signal, to approximate Hilbert transform.
+        
+        Explanation:
+            For x(t) = A(t)*cos(2pi fc t), the Hilber transform of it is u(t) = A(t)*sin(2pi fc t).
+            If we shift the signal by pi/2 (d) in time, we have 
+                f(t) = +A(t-d)*sin(2pi fc t), (FORARED FIRST ORDER APPROXIMATION).
+            We can shift backward also, to have
+                b(t) = -A(t+d)*sin(2pi fc t), (BACKWARD FIRST ORDER APPROXIMATION).
+            Then, the avarged one will be a lot better, that is
+                s(t) = [f(t) - b(t)] / 2, (SECOND ORDER APPROXIMATION).
+            Then we can build approximated analytic signal by a(t) = x(t) + j*s(t).
+        """
+        # load signal into buffer, no allocation needed
+        self.demod_buffer.real[:] = signal    # inplace copy of real part
+        self.demod_buffer.imag[:] = 0         # clear imaginary part
+
+        if not second_order:
+            # first order approximation, a(t) = x(t) + j*f(t)
+            self.demod_buffer.imag[self.quad_shift_pts:] = signal[:-self.quad_shift_pts]
+        else:
+            # second order approximation, a(t) = x(t) + j*[f(t) - b(t)] / 2
+            self.demod_buffer.imag[self.quad_shift_pts:]  =  0.5 * signal[:-self.quad_shift_pts]
+            self.demod_buffer.imag[:-self.quad_shift_pts] -= 0.5 * signal[self.quad_shift_pts:]
+
+        # now buf is analytic signal a(t), demod by a(t) * exp(-j omega t)        
+        if copy:
+            return (self.demod_buffer * self.cpx_lo)  # new array allocated here
+        else:
+            # in-place mutiplication, no allocation
+            self.demod_buffer *= self.cpx_lo
+            return self.demod_buffer
 
 
     def iq_demod(self, signal):
@@ -397,13 +448,15 @@ class TemporalModeMatcher:
         """
         self.fs = fs
 
-    def regist_filter(self, digitized_filter):
-        """Regist a filter, it will normalize it for you.
+    def regist_filter(self, mm_filter):
+        """Regist a mode matching filter, it will normalize it for you.
         
         The normalization goes "int sum( |f[n]|^2  dt ) = 1, dt = 1/fs".
         """
-        norm_factor = np.sqrt(np.sum(np.abs(digitized_filter)**2) / self.fs)
-        self.digitized_filter = digitized_filter / norm_factor
+        norm_factor = np.sqrt(np.sum(np.abs(mm_filter)**2) / self.fs)
+        self.mm_filter = mm_filter / norm_factor
+        self.mm_filter = np.ascontiguousarray(self.mm_filter)
+        self.filter_len = len(self.mm_filter)
 
     def pad_or_trim_filter(self, pad_front=-40, pad_end=-40):
         """Pad zero or trim some points from the registed filter and return it.
@@ -413,7 +466,7 @@ class TemporalModeMatcher:
         >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
         >>> tmmer.plot_tmm_info(signal)
         """
-        trimed = copy(self.digitized_filter)
+        trimed = copy(self.mm_filter)
 
         # Front padding or trimming
         if pad_front > 0:
@@ -437,45 +490,51 @@ class TemporalModeMatcher:
         >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
         >>> tmmer.plot_tmm_info(signal)
         """
-        n_inprod = len(signal) - len(self.digitized_filter) + 1
+        n_inprod = len(signal) - len(self.mm_filter) + 1
         if n_inprod <= 0:
             print(f'Not valid for length of filter is larger then that of signal.'
-                  f' ({len(self.digitized_filter)} > {len(signal)})')
+                  f' ({len(self.mm_filter)} > {len(signal)})')
             return 
         print('# of inner product: ', n_inprod)
 
         # rescale filter to make the plot easy to see
-        factor = np.max(np.abs(signal)) / np.max(self.digitized_filter)
+        factor = np.max(np.abs(signal)) / np.max(self.mm_filter)
 
         plt.plot(np.abs(signal), label='abs(signal)', color='orange', alpha=0.6)
-        plt.plot(factor*self.digitized_filter, label='filter start', color='blue')
-        plt.plot(factor*np.concatenate([np.zeros(n_inprod-1), self.digitized_filter]), 
+        plt.plot(factor*self.mm_filter, label='filter start', color='blue')
+        plt.plot(factor*np.concatenate([np.zeros(n_inprod-1), self.mm_filter]), 
                 label='filter end', color='red')
         plt.legend()
         plt.show()
 
-    def perform_tmm(self, signal, index=None):
+
+    def perform_tmm(self, signal, index: int=None):
         """Perform temporal mode matching with complex signal.
 
-        Arg:
-            index(int): if None, matching, otherwise use it to do inner product.
-        
         1. Use abs(signal) and filter to find the best alignment.
         2. Return the complex inner product at that best-matching position.
+
+        Args:
+            signal (1d numpy array): the complex signal to be matching.
+            index (int): if None, matching, otherwise use it to do inner product.
+        Returns:
+            tuple:
+                - inner_products (complex): temporal moda matching result.
+                - best_indices (int): the matching index.
         """
         if index is None:
             # match magnitudes to find best alignment
             correlation_result = np.correlate(
-                np.abs(signal), self.digitized_filter, mode='valid'
+                np.abs(signal), self.mm_filter, mode='valid'
             )
             best_idx = np.argmax(correlation_result)
         else:
             best_idx = index
 
         # compute complex inner product for best aligment case
-        matched_segment = signal[best_idx : best_idx + len(self.digitized_filter)]
-        inner_product = np.dot(self.digitized_filter, matched_segment)
-        return inner_product
+        matched_segment = signal[best_idx : best_idx + self.filter_len]
+        inner_product = np.dot(self.mm_filter, matched_segment)
+        return inner_product, best_idx
 
 
 def cpx_to_rphi(complex_numbers):
