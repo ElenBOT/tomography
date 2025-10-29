@@ -533,7 +533,7 @@ class TemporalModeMatcher:
 
         # compute complex inner product for best aligment case
         matched_segment = signal[best_idx : best_idx + self.filter_len]
-        inner_product = np.dot(self.mm_filter, matched_segment)
+        inner_product = np.dot(self.mm_filter, matched_segment) / self.fs
         return inner_product, best_idx
 
 
