@@ -33,6 +33,10 @@ __all__ = [
     'cpx_to_rphi',
 ]
 
+
+########## Histogram: accumulate single shot values of a, in order to compute moment ##########
+########## Histogram: accumulate single shot values of a, in order to compute moment ##########
+########## Histogram: accumulate single shot values of a, in order to compute moment ##########
 class Histogram:
     """A 2D histogram for visualizing complex-valued measurement data.
 
@@ -88,10 +92,16 @@ class Histogram:
         j = int((x + self.max_x_p) / self.bin_size)
         return i, j
 
-    def get_normalized_histogram(self):
+    def get_top_normalized_histogram(self):
         """Return histogram with maxima value be 1."""
         max_val = np.max(self.D)
         return self.D / max_val if max_val != 0 else self.D
+
+    def get_sum_normalized_histogram(self):
+        """Return histogram with its intergral value be 1."""
+        from .postprocess import approx_complex_2dint
+        int_val = approx_complex_2dint(self.D, self.S)
+        return self.D / int_val if int_val != 0 else self.D
 
     def accumulate_to_histogram(self, measured_s: complex):
         """Accumulate measurement data to histogram. S = X + iP."""
@@ -100,7 +110,7 @@ class Histogram:
             self.D[i, j] += 1
 
     def plot(self, title="Histogram", cmap='hot', ax=None):
-        """Plot normalized histogram.
+        """Plot top normalized (max=1) histogram.
 
         Example usage:
         >>> fig, axs = plt.subplots(1, 2, figsize=(11.5, 5), sharey=True)
@@ -109,7 +119,7 @@ class Histogram:
         >>> plt.tight_layout()
         >>> plt.show()
         """
-        data = self.get_normalized_histogram()
+        data = self.get_top_normalized_histogram()
         extent = [-self.max_x_p, self.max_x_p, -self.max_x_p, self.max_x_p]
 
         # Use current axis if none provided
@@ -124,73 +134,73 @@ class Histogram:
 
         # Only add colorbar if using default plotting
         if ax is plt.gca():
-            plt.colorbar(im, ax=ax, label='Normalized counts')
+            plt.colorbar(im, ax=ax, label='scaled (Max=1) counts')
 
         return im  # return image object for optional colorbar usage
 
-    def resolution_down(self, factor: int):
-        """Return a new Histogram object with reduced resolution.
+    # def resolution_down(self, factor: int):
+    #     """Return a new Histogram object with reduced resolution.
 
-        The number of rows and columns in the new histogram is determined by
-        dividing the current number of rows/columns by 2**(factor-1).
+    #     The number of rows and columns in the new histogram is determined by
+    #     dividing the current number of rows/columns by 2**(factor-1).
 
-        Args:
-            factor (int): An integer >= 1.
-                - factor=1: No change in resolution (divides by 2^0=1).
-                - factor=2: Resolution halved (divides by 2^1=2).
-                - factor=3: Resolution quartered (divides by 2^2=4), etc.
+    #     Args:
+    #         factor (int): An integer >= 1.
+    #             - factor=1: No change in resolution (divides by 2^0=1).
+    #             - factor=2: Resolution halved (divides by 2^1=2).
+    #             - factor=3: Resolution quartered (divides by 2^2=4), etc.
 
-        Returns:
-            Histogram: A new Histogram instance with the reduced resolution and aggregated data.
+    #     Returns:
+    #         Histogram: A new Histogram instance with the reduced resolution and aggregated data.
 
-        Raises:
-            ValueError: If factor is less than 1, or if the resulting
-                        number of rows/columns would be less than 1, or if
-                        the current n_row_col is not divisible by the reduction step.
-        """
-        if not isinstance(factor, int) or factor < 1:
-            raise ValueError("factor must be a positive integer (>= 1).")
+    #     Raises:
+    #         ValueError: If factor is less than 1, or if the resulting
+    #                     number of rows/columns would be less than 1, or if
+    #                     the current n_row_col is not divisible by the reduction step.
+    #     """
+    #     if not isinstance(factor, int) or factor < 1:
+    #         raise ValueError("factor must be a positive integer (>= 1).")
 
-        if factor == 1:
-            reduction_step = 1
-        else:
-            reduction_step = 2**(factor - 1)
+    #     if factor == 1:
+    #         reduction_step = 1
+    #     else:
+    #         reduction_step = 2**(factor - 1)
 
-        if self.n_row_col % reduction_step != 0:
-            # This might occur if n_row_col is not a power of 2, and factor implies
-            # a reduction_step (which is a power of 2) that doesn't evenly divide n_row_col.
-            raise ValueError(
-                f"Current n_row_col ({self.n_row_col}) is not divisible by "
-                f"the calculated reduction step ({reduction_step}) derived from factor {factor}."
-            )
+    #     if self.n_row_col % reduction_step != 0:
+    #         # This might occur if n_row_col is not a power of 2, and factor implies
+    #         # a reduction_step (which is a power of 2) that doesn't evenly divide n_row_col.
+    #         raise ValueError(
+    #             f"Current n_row_col ({self.n_row_col}) is not divisible by "
+    #             f"the calculated reduction step ({reduction_step}) derived from factor {factor}."
+    #         )
 
-        new_n_row_col = self.n_row_col // reduction_step
+    #     new_n_row_col = self.n_row_col // reduction_step
 
-        if new_n_row_col < 1:
-            raise ValueError(
-                f"Factor {factor} results in a new_n_row_col ({new_n_row_col}) that is less than 1. "
-                f"The reduction is too large for the current histogram size."
-            )
+    #     if new_n_row_col < 1:
+    #         raise ValueError(
+    #             f"Factor {factor} results in a new_n_row_col ({new_n_row_col}) that is less than 1. "
+    #             f"The reduction is too large for the current histogram size."
+    #         )
 
-        # Create the new histogram object. Its __init__ will generate the new S coordinates.
-        new_hist = Histogram(n_row_col=new_n_row_col, max_x_p=self.max_x_p)
+    #     # Create the new histogram object. Its __init__ will generate the new S coordinates.
+    #     new_hist = Histogram(n_row_col=new_n_row_col, max_x_p=self.max_x_p)
 
-        # Populate the D matrix of the new histogram by summing counts from blocks
-        # in the original histogram's D matrix.
-        for i_new in range(new_n_row_col):
-            for j_new in range(new_n_row_col):
-                # Define the block in the old histogram corresponding to the new bin
-                start_i_old = i_new * reduction_step
-                end_i_old = start_i_old + reduction_step
+    #     # Populate the D matrix of the new histogram by summing counts from blocks
+    #     # in the original histogram's D matrix.
+    #     for i_new in range(new_n_row_col):
+    #         for j_new in range(new_n_row_col):
+    #             # Define the block in the old histogram corresponding to the new bin
+    #             start_i_old = i_new * reduction_step
+    #             end_i_old = start_i_old + reduction_step
                 
-                start_j_old = j_new * reduction_step
-                end_j_old = start_j_old + reduction_step
+    #             start_j_old = j_new * reduction_step
+    #             end_j_old = start_j_old + reduction_step
                 
-                # Sum the counts within this block from the original D matrix
-                block_sum = np.sum(self.D[start_i_old:end_i_old, start_j_old:end_j_old])
-                new_hist.D[i_new, j_new] = block_sum
+    #             # Sum the counts within this block from the original D matrix
+    #             block_sum = np.sum(self.D[start_i_old:end_i_old, start_j_old:end_j_old])
+    #             new_hist.D[i_new, j_new] = block_sum
                 
-        return new_hist
+    #     return new_hist
 
     def save_to_csv(self, filepath: str):
         """Save histogram data, configuration, and comment to a CSV file."""
@@ -207,7 +217,6 @@ class Histogram:
             # Write histogram data
             for row in self.D:
                 writer.writerow(row)
-
 
     @staticmethod
     def read_from_csv(filepath: str):
@@ -233,7 +242,9 @@ class Histogram:
 
         return hist
 
-
+########## Demodulator: demodulation, written to be resued with high efficency. ##########
+########## Demodulator: demodulation, written to be resued with high efficency. ##########
+########## Demodulator: demodulation, written to be resued with high efficency. ##########
 class Demodulator:
     """Optimized demodulation processor with preset parameters.
     
@@ -393,7 +404,10 @@ class Demodulator:
     def low_pass_filter(self, signal):
         """Apply FIR low-pass filter to the input signal using the configured taps."""
         return np.convolve(signal, self.fir, mode='same')  # center-aligned
-    
+
+########## TemporalModeMatcher: to do temporal mode matching, s(t) -> s. ##########
+########## TemporalModeMatcher: to do temporal mode matching, s(t) -> s. ##########
+########## TemporalModeMatcher: to do temporal mode matching, s(t) -> s. ##########
 class TemporalModeMatcher:
     """Handles temporal mode matching operations.
 

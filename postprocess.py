@@ -62,7 +62,8 @@ def docstring_example():
 __all__ = [
     ## Evaluate moments
     'approx_complex_2dint',
-    'eva_qubit_moments_from_hist',
+    'eva_moments',
+    'eva_qubit_moments',
 
     ## Winger function
     'get_winger_function_func',
@@ -75,6 +76,7 @@ __all__ = [
 import numpy as np
 from scipy.optimize import minimize
 from scipy.linalg import sqrtm
+from .measurekit import Histogram
 
 def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> complex:
     """Approximates the 2D integral of a function using a discrete sum over a rectangular region.
@@ -109,51 +111,60 @@ def approx_complex_2dint(func_value2d: np.ndarray, coord2d: np.ndarray) -> compl
     return np.sum(func_value2d) * deltax * deltay
 
 
-def eva_S_moment_from_hist(S: np.ndarray, n: int, m: int, D: np.ndarray, G: float=1) -> complex:
-    """Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of histogram D.
+def eva_moment(hist: Histogram, n: int, m: int, G_power: float=1) -> complex:
+    """Evaluate normally-ordered moment, ⟨S†^n S^m⟩, of a histogram.
     
     Args:
-        S (2d numpy array): As coordinate.
-        D (2d numpy array): The histograme, or denoted as D(S).
-        G (float): Gain of the amplifier chain, default is 1.
+        hist_s (2d numpy array): The histogram.
+        G_power (float): Power gain of the amplifier chain, default is 1.
         
     Returns:
         S_moment (complex number): The ⟨S†^n S^m⟩ value.
 
     Explanation:
-        ref:[eth-6886-02], p.53, eqa(3.18).
+        The definition of expectation value <A> = int A*P(x) dx
     """
-    gain_term = G ** (-(n+m)/2)
+    S = hist.S # coord
+    D = hist.D / approx_complex_2dint(hist.D, hist.S) # to be prob distrubution
+    gain_term = G_power ** (-(n+m)/2)
     func = S.conj()**n * S**m * D * gain_term
     return approx_complex_2dint(func, S)
 
 
-def eva_h_moment_anti_from_hist(S: np.ndarray, n: int, m: int, D_h: np.ndarray, G: float=1) -> complex:
-    """Evaluate anti-ordered moment, ⟨h^n h†^m⟩, of histogram D_h.
-
+def eva_moments(hist: Histogram, highest_order=4, G_power: float=1) -> complex:
+    """Evaluate normally-ordered moments, ⟨S†^n S^m⟩, of a histogram, up to an order.
+    
     Args:
-        S (2d numpy array): As coordinate.
-        D (2d numpy array): The histograme, or denoted as D(S).
-        G (float): Gain of the amplifier chain, default is 1.
-
+        hist_s (2d numpy array): The histograme.
+        G (float): Power gain of the amplifier chain, default is 1.
+        
     Returns:
-        h_moment_anti (complex number): The ⟨h^n h†^m⟩ value.
+        S_moments (dict): The ⟨S†^n S^m⟩ values, with key 'snm'.
 
     Explanation:
-        ref:[eth-6886-02], p.55, eqa(3.24).
+        The definition of expectation value <A> = int A*P(x) dx
+
+    Example usage:
+    >>> moments = eva_moments(hist, G_power=1, highest_order=4)
+    >>> moments['s01']
     """
-    return eva_S_moment_from_hist(S, n, m, D_h, G)
+    moments = {}
+    for order in range(1, highest_order + 1):
+        for n in range(order, -1, -1):  # Iterate over (n, m) pairs
+            m = order - n
+            moments[f's{n}{m}'] = eva_moment(hist, n, m, G_power)
+    return moments
 
 
-def eva_qubit_moments_from_hist(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray, 
-                      G: float=1, highest_order: int=4) -> dict:
+def eva_qubit_moments(
+        hist_s: Histogram, hist_h: Histogram, 
+        G_power: float=1, highest_order: int=4) -> dict:
     """Evaluate qubit moments <a^†n a^m> from histogram.
     
     Args:
-        S (2d numpy array): As coordinate.
-        D_S (2d numpy array): The histograme of measurment, or denoted as D_S(S).
-        D_h (2d numpy array): The histograme of ref state, or denoted as D_h(S).
-        G (float): Gain of the amplifier chain, default is 1.
+        hist_s (Histogram): The histograme of measurment.
+        hist_h (Histogram): The histograme of ref state.
+        G (float): Power gain of the amplifier chain, default is 1.
         highest_order (int): highest order, i.e. (n+m) value.
 
     Returns:
@@ -164,16 +175,20 @@ def eva_qubit_moments_from_hist(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
         Solve moments from low order to high order one after one.
     
     Example usage:
-    >>> moments = eva_qubit_moments_from_hist(S, D_S, D_h, G=1, highest_order=4)
+    >>> moments = eva_qubit_moments(hist_s, hist_h, G_power=1, highest_order=4)
     >>> moments['a01']
     """
     # <h^n a^†m> will be used many times, like <a^†n a^m> does. So write
     # a function to reduce duplicate intergal computing.
     h_moments_anti = {}
     def get_h_moment_anti(n, m):
-        """Return <h^n a^†m> value, evaulate it if not computed before."""
+        """Return <h^n a^†m> value, evaulate it if not computed before.
+        
+        Since s = (a + h†), so moment <s^n s^†m> when a = 0 will be  <h^n a^†m>,
+        the anti-ordered one.
+        """
         if f'h{n}{m}' not in h_moments_anti:
-            h_moments_anti[f'h{n}{m}'] = eva_h_moment_anti_from_hist(S, n, m, D_h, G)
+            h_moments_anti[f'h{n}{m}'] = eva_moment(hist_h, n, m, G_power)
         return h_moments_anti[f'h{n}{m}']
     
     # Compute <a^†n a^m>, by subtacting <S^†n S^m> by all other terms expect <a^†n a^m>
@@ -190,7 +205,7 @@ def eva_qubit_moments_from_hist(S: np.ndarray, D_S: np.ndarray, D_h: np.ndarray,
                     of_h = get_h_moment_anti(n-i, m-j)
                     to_be_subtract += comb(n, i) * comb(m, j) * of_a * of_h
 
-        ans = eva_S_moment_from_hist(S, n, m, D_S, G) - to_be_subtract
+        ans = eva_moment(hist_s, n, m, G_power) - to_be_subtract
         return ans
 
     # compute <a^†n a^m> from low order to high order
