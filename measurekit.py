@@ -2,7 +2,7 @@
 
 ref: [eth-6886-02]
 
-This module provides tools to do tomography measurement, 
+This module provides tools to do tomography measurement,
 including demodulation, temporal mode matching, and histogram visualization.
 The measurement may goes like:
 1. Measure an averaged emission, by the help of `Demodulator`.
@@ -27,10 +27,10 @@ import csv
 
 
 __all__ = [
-    'Histogram',
-    'Demodulator',
-    'TemporalModeMatcher',
-    'cpx_to_rphi',
+    "Histogram",
+    "Demodulator",
+    "TemporalModeMatcher",
+    "cpx_to_rphi",
 ]
 
 
@@ -44,13 +44,13 @@ class Histogram:
         D (np.ndarray): 2D array storing the histogram counts.
         S (np.ndarray): Complex coordinates for the histogram.
         comment (str): a string that is added as common.
-        
+
     Methods:
         `accumulate_to_histogram`: Accumulate measurement data to histogram. S = X + iP
         `get_normalized_histogram`: Return histogram with maxima value be 1.
         `plot`: Plot normalized histogram.
         `save_to_csv`: Save histogram to csv, also include comment.
-    
+
     Static method:
         `read_from_csv`: Read histogram from csv, return Histogram object.
 
@@ -69,7 +69,8 @@ class Histogram:
     >>> D, S = his.get_normalized_histogram(), his.S
     >>> his.plot("Random Gaussian Samples in Phase Space")
     """
-    def __init__(self, n_row_col: int, max_x_p: float, comment=''):
+
+    def __init__(self, n_row_col: int, max_x_p: float, comment=""):
         """
         Args:
             n_row_col (int): number of rows and columns of histogram
@@ -100,6 +101,7 @@ class Histogram:
     def get_sum_normalized_histogram(self):
         """Return histogram with its intergral value be 1."""
         from .postprocess import approx_complex_2dint
+
         int_val = approx_complex_2dint(self.D, self.S)
         return self.D / int_val if int_val != 0 else self.D
 
@@ -109,7 +111,7 @@ class Histogram:
         if i is not None:
             self.D[i, j] += 1
 
-    def plot(self, title="Histogram", cmap='hot', ax=None):
+    def plot(self, title="Histogram", cmap="hot", ax=None):
         """Plot top normalized (max=1) histogram.
 
         Example usage:
@@ -126,15 +128,15 @@ class Histogram:
         if ax is None:
             ax = plt.gca()
 
-        im = ax.imshow(data, extent=extent, origin='lower', cmap=cmap)
+        im = ax.imshow(data, extent=extent, origin="lower", cmap=cmap)
         ax.set_title(title)
-        ax.set_xlabel('X')
-        ax.set_ylabel('P')
-        ax.set_aspect('equal')  # keep square pixels
+        ax.set_xlabel("X")
+        ax.set_ylabel("P")
+        ax.set_aspect("equal")  # keep square pixels
 
         # Only add colorbar if using default plotting
         if ax is plt.gca():
-            plt.colorbar(im, ax=ax, label='scaled (Max=1) counts')
+            plt.colorbar(im, ax=ax, label="scaled (Max=1) counts")
 
         return im  # return image object for optional colorbar usage
 
@@ -192,27 +194,27 @@ class Histogram:
     #             # Define the block in the old histogram corresponding to the new bin
     #             start_i_old = i_new * reduction_step
     #             end_i_old = start_i_old + reduction_step
-                
+
     #             start_j_old = j_new * reduction_step
     #             end_j_old = start_j_old + reduction_step
-                
+
     #             # Sum the counts within this block from the original D matrix
     #             block_sum = np.sum(self.D[start_i_old:end_i_old, start_j_old:end_j_old])
     #             new_hist.D[i_new, j_new] = block_sum
-                
+
     #     return new_hist
 
     def save_to_csv(self, filepath: str):
         """Save histogram data, configuration, and comment to a CSV file."""
-        with open(filepath, mode='w', newline='') as f:
+        with open(filepath, mode="w", newline="") as f:
             writer = csv.writer(f)
 
             # Write metadata
-            writer.writerow(['n_row_col', 'max_x_p', 'comment'])
+            writer.writerow(["n_row_col", "max_x_p", "comment"])
             writer.writerow([self.n_row_col, self.max_x_p, self.comment])
 
             # Write header for data section
-            writer.writerow(['D'])
+            writer.writerow(["D"])
 
             # Write histogram data
             for row in self.D:
@@ -221,7 +223,7 @@ class Histogram:
     @staticmethod
     def read_from_csv(filepath: str):
         """Read histogram object from a CSV file (including metadata and comment)."""
-        with open(filepath, mode='r') as f:
+        with open(filepath, mode="r") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
@@ -230,7 +232,7 @@ class Histogram:
         values = rows[1]
         n_row_col = int(values[0])
         max_x_p = float(values[1])
-        comment = values[2] if len(values) > 2 else ''
+        comment = values[2] if len(values) > 2 else ""
 
         # Create new Histogram
         hist = Histogram(n_row_col=n_row_col, max_x_p=max_x_p, comment=comment)
@@ -242,12 +244,13 @@ class Histogram:
 
         return hist
 
+
 ########## Demodulator: demodulation, written to be resued with high efficency. ##########
 ########## Demodulator: demodulation, written to be resued with high efficency. ##########
 ########## Demodulator: demodulation, written to be resued with high efficency. ##########
 class Demodulator:
     """Optimized demodulation processor with preset parameters.
-    
+
     For A(t) is baseband signal that mixed with a carrier with frequency fc, forming the signal x(t).
     Demodulation can be seen as a process to obtain A(t) for a given x(t) and fc.
     And we use ADC to sample our signal x(t) into x[n], and this class perform demodulation task.
@@ -278,94 +281,66 @@ class Demodulator:
     >>> plt.plot(signal, label='signal', alpha=0.5)
     >>> plt.legend()
     >>> plt.show()
-    
+
     """
-    def __init__(self, fc, fs, n_samples, cutoff=20e6, num_taps=31):
-        """
-        Args:
-            fc (float): carrier frequency to be demoded out of signal.
-            fs (float): sampling rate of the digitized signal.
-            n_samples (int): length of digitized signal.
-            cutoff (float): cutoff freq for low pass filter operation
-            num_taps (int): Number of FIR filter taps (odd number recommended).
-        """
-        # general
+
+    ## initialization
+    def __init__(self, fc, fs, n_samples):
         self.fc = fc
         self.fs = fs
         self.n_samples = n_samples
-        self.t = np.arange(n_samples) * 1/fs
-        self.cpx_lo = np.exp(-1j*2*np.pi*fc*self.t)
+
+        # general buffers
+        self.t = np.arange(n_samples) / fs
+        self.cpx_lo = np.exp(-1j * 2 * np.pi * fc * self.t)
         self.demod_buffer = np.zeros(n_samples, dtype=np.complex128)
 
         # for fast_shift_demod
         self.quad_shift_pts = int(fs / fc / 4)
         if not isclose(fs / fc / 4, self.quad_shift_pts, rel_tol=0, abs_tol=1e-9):
-            warn("fs is not interger mutiple of 4*fc, fast shift demodulation will not work.")
+            warn("fs is not interger mutiple of 4*fc.")
 
-        # for iq_demod (simple LPF: sinc * window)
-        self.cutoff = cutoff
-        self.num_taps = num_taps
-        nyq = self.fs / 2
-        norm_cutoff = cutoff / nyq
-        taps = np.sinc(2 * norm_cutoff * (np.arange(num_taps) - (num_taps - 1) / 2))
-        window = np.hamming(num_taps)
-        fir = taps * window
-        self.fir = fir / np.sum(fir)
+        # for fast_boxcar_demod
+        self.boxcar_kernel = np.ones(20) / 20 * 2.0
 
+    ## print current settings
+    ## print settings
     def print_setting(self):
-        """print settings about demodulation"""
-        string = (
-            f"fc (carrier frequency) : {self.fc*1e-6:.3f} MHz\n"
-            f"fs (sampling rate) : {self.fs*1e-9:.3f} GHz\n"
-            f"n_samples : {self.n_samples} pts\n"
-            f"cutoff : {self.cutoff*1e-6:.3f} MHz\n"
-            f"num_taps : {self.num_taps}\n"
+        print(
+            f"fc : {self.fc * 1e-6:.3f} MHz\n"
+            f"fs : {self.fs * 1e-9:.3f} GHz\n"
+            f"n_samples : {self.n_samples}\n"
+            f"Boxcar window : {len(self.boxcar_kernel)} pts\n"
+            f"Quad shift pts : {self.quad_shift_pts}"
         )
-        print(string)
 
+    ## Stander demodulation, should use this in the experiment
+    def fast_boxcar_demod(self, signal, window_size=20):
+        # lazily update precomputed kernel if window size changes
+        if len(self.boxcar_kernel) != window_size:
+            self.boxcar_kernel = np.ones(window_size) / window_size * 2.0
+
+        # reuse buffer for in-place mixing
+        self.demod_buffer.real[:] = signal
+        self.demod_buffer.imag[:] = 0
+        self.demod_buffer *= self.cpx_lo
+
+        return np.convolve(self.demod_buffer, self.boxcar_kernel, mode="same")
+
+    ## Demod using hilbert transform, the teorically baseband, but DC off-set and leakage signal breaks it
     def hilbert_ssb_demod(self, signal):
         "Demod using Hilbert transform."
         analytic = hilbert(signal)
         demoded = analytic * self.cpx_lo
         return demoded
 
-    ## Devlog: not faster then using for loop, although I don't know why
-    # def fast_shift_demod_batch(self, signal, second_order=True, copy=True):
-    #     """Demod a batch of signals with approximated Hilbert transform. See docstring of `fast_shift_demod`.
-        
-    #     Args:
-    #         signal (2d np.array): Signal for many traces. If 1d, promote to 2d with 1 trace.
-    #         second_order (bool): use second order approximation, see docsting.
-    #     Return:
-    #         demodulated (2d np.array): n-th elem is n-th demodulated trace.
-    #     """
-    #     # load signal into buffer, no allocation needed
-    #     self.batch_demod_buffer.real[:, :] = signal # inplace copy of real part
-    #     self.batch_demod_buffer.imag[:, :] = 0      # clear imaginary part
-
-    #     if not second_order:
-    #         # first order approximation, a(t) = x(t) + j*f(t)
-    #         self.batch_demod_buffer.imag[:, self.quad_shift_pts:] = signal[:, :-self.quad_shift_pts]
-    #     else:
-    #         # second order approximation, a(t) = x(t) + j*[f(t) - b(t)] / 2
-    #         self.batch_demod_buffer.imag[:, self.quad_shift_pts:]  =  0.5 * signal[:, :-self.quad_shift_pts]
-    #         self.batch_demod_buffer.imag[:, :-self.quad_shift_pts] -= 0.5 * signal[:, self.quad_shift_pts:]
-
-    #     # now buf is analytic signal a(t), demod by a(t) * exp(-j omega t)        
-    #     if copy:
-    #         return (self.batch_demod_buffer * self.cpx_lo[None, :])  # new array allocated here
-    #     else:
-    #         # in-place mutiplication, no allocation
-    #         self.batch_demod_buffer *= self.cpx_lo[None, :]
-    #         return self.batch_demod_buffer
-    
-
+    ## approximated hilbert demod, very very fast, but suffer the same issue with hilbert_ssb_demod
     def fast_shift_demod(self, signal, second_order=True, copy=True):
         """Demod with duplicate shifted signal, to approximate Hilbert transform.
-        
+
         Explanation:
             For x(t) = A(t)*cos(2pi fc t), the Hilber transform of it is u(t) = A(t)*sin(2pi fc t).
-            If we shift the signal by pi/2 (d) in time, we have 
+            If we shift the signal by pi/2 (d) in time, we have
                 f(t) = +A(t-d)*sin(2pi fc t), (FORARED FIRST ORDER APPROXIMATION).
             We can shift backward also, to have
                 b(t) = -A(t+d)*sin(2pi fc t), (BACKWARD FIRST ORDER APPROXIMATION).
@@ -374,36 +349,57 @@ class Demodulator:
             Then we can build approximated analytic signal by a(t) = x(t) + j*s(t).
         """
         # load signal into buffer, no allocation needed
-        self.demod_buffer.real[:] = signal    # inplace copy of real part
-        self.demod_buffer.imag[:] = 0         # clear imaginary part
+        self.demod_buffer.real[:] = signal  # inplace copy of real part
+        self.demod_buffer.imag[:] = 0  # clear imaginary part
 
         if not second_order:
             # first order approximation, a(t) = x(t) + j*f(t)
-            self.demod_buffer.imag[self.quad_shift_pts:] = signal[:-self.quad_shift_pts]
+            self.demod_buffer.imag[self.quad_shift_pts :] = signal[
+                : -self.quad_shift_pts
+            ]
         else:
             # second order approximation, a(t) = x(t) + j*[f(t) - b(t)] / 2
-            self.demod_buffer.imag[self.quad_shift_pts:]  =  0.5 * signal[:-self.quad_shift_pts]
-            self.demod_buffer.imag[:-self.quad_shift_pts] -= 0.5 * signal[self.quad_shift_pts:]
+            self.demod_buffer.imag[self.quad_shift_pts :] = (
+                0.5 * signal[: -self.quad_shift_pts]
+            )
+            self.demod_buffer.imag[: -self.quad_shift_pts] -= (
+                0.5 * signal[self.quad_shift_pts :]
+            )
 
-        # now buf is analytic signal a(t), demod by a(t) * exp(-j omega t)        
+        # now buf is analytic signal a(t), demod by a(t) * exp(-j omega t)
         if copy:
-            return (self.demod_buffer * self.cpx_lo)  # new array allocated here
+            return self.demod_buffer * self.cpx_lo  # new array allocated here
         else:
             # in-place mutiplication, no allocation
             self.demod_buffer *= self.cpx_lo
             return self.demod_buffer
 
+    ## fft spectrum, default plot from 0 to nyquist frequency
+    def fft_spectrum(self, signal, f_lim=None, plot_result=True):
+        if f_lim is None:
+            f_lim = (0, self.fs / 2)
 
-    def iq_demod(self, signal):
-        "Fast IQ demodulation with FIR filtering (optimized for known fixed fs and fc)."
-        baseband = signal * self.cpx_lo
-        # Apply FIR filter
-        filtered = np.convolve(baseband, self.fir, mode='same')  # center-aligned
-        return filtered * 2
+        freqs = np.fft.fftfreq(self.n_samples, d=1 / self.fs)
+        spectrum = np.fft.fft(signal)
 
-    def low_pass_filter(self, signal):
-        """Apply FIR low-pass filter to the input signal using the configured taps."""
-        return np.convolve(signal, self.fir, mode='same')  # center-aligned
+        # filter for requested frequency range
+        mask = (freqs >= f_lim[0]) & (freqs <= f_lim[1])
+        freqs_lim = freqs[mask]
+        spectrum_lim = spectrum[mask]
+
+        if plot_result:
+            import matplotlib.pyplot as plt
+
+            plt.plot(freqs_lim / 1e6, 20 * np.log10(np.abs(spectrum_lim) + 1e-12))
+            plt.title("Spectrum")
+            plt.xlabel("Frequency (MHz)")
+            plt.ylabel("Magnitude (dB)")
+            plt.xlim(f_lim[0] / 1e6, f_lim[1] / 1e6)
+            plt.grid(True)
+            plt.show()
+
+        return freqs_lim, spectrum_lim
+
 
 ########## TemporalModeMatcher: to do temporal mode matching, s(t) -> s. ##########
 ########## TemporalModeMatcher: to do temporal mode matching, s(t) -> s. ##########
@@ -425,7 +421,7 @@ class TemporalModeMatcher:
         `pad_or_trim_filter`: Pad zero or trim some points from the registed filter and return it.
         `plot_tmm_info`: Print and plot temporal mode matching convolution window.
         `perform_tmm`: Perform temporal mode matching with complex signal.
-    
+
     Example usage:
     >>> import numpy as np
     >>> from matplotlib import pyplot as plt
@@ -436,8 +432,8 @@ class TemporalModeMatcher:
     >>> baseband = np.concatenate([np.exp(t/2e-7), np.zeros(200)]) / 1e8
     >>> def add_noise(signal, sigma=1e-7):
     >>>     noise = np.random.normal(
-    >>>         loc=0.0, 
-    >>>         scale=sigma, 
+    >>>         loc=0.0,
+    >>>         scale=sigma,
     >>>         size=signal.shape
     >>>     )
     >>>     return signal + noise
@@ -451,6 +447,7 @@ class TemporalModeMatcher:
     >>> s = tmm.perform_tmm(signal)
     >>> print('tmm result:', s)
     """
+
     def __init__(self, fs):
         """Set sampling rate.
 
@@ -464,17 +461,17 @@ class TemporalModeMatcher:
 
     def regist_filter(self, mm_filter):
         """Regist a mode matching filter, it will normalize it for you.
-        
+
         The normalization goes "int sum( |f[n]|^2  dt ) = 1, dt = 1/fs".
         """
-        norm_factor = np.sqrt(np.sum(np.abs(mm_filter)**2) / self.fs)
+        norm_factor = np.sqrt(np.sum(np.abs(mm_filter) ** 2) / self.fs)
         self.mm_filter = mm_filter / norm_factor
         self.mm_filter = np.ascontiguousarray(self.mm_filter)
         self.filter_len = len(self.mm_filter)
 
     def pad_or_trim_filter(self, pad_front=-40, pad_end=-40):
         """Pad zero or trim some points from the registed filter and return it.
-        
+
         Example usage:
         >>> tmmer.regist_filter(avg_sig)
         >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
@@ -506,23 +503,27 @@ class TemporalModeMatcher:
         """
         n_inprod = len(signal) - len(self.mm_filter) + 1
         if n_inprod <= 0:
-            print(f'Not valid for length of filter is larger then that of signal.'
-                  f' ({len(self.mm_filter)} > {len(signal)})')
-            return 
-        print('# of inner product: ', n_inprod)
+            print(
+                f"Not valid for length of filter is larger then that of signal."
+                f" ({len(self.mm_filter)} > {len(signal)})"
+            )
+            return
+        print("# of inner product: ", n_inprod)
 
         # rescale filter to make the plot easy to see
         factor = np.max(np.abs(signal)) / np.max(self.mm_filter)
 
-        plt.plot(np.abs(signal), label='abs(signal)', color='orange', alpha=0.6)
-        plt.plot(factor*self.mm_filter, label='filter start', color='blue')
-        plt.plot(factor*np.concatenate([np.zeros(n_inprod-1), self.mm_filter]), 
-                label='filter end', color='red')
+        plt.plot(np.abs(signal), label="abs(signal)", color="orange", alpha=0.6)
+        plt.plot(factor * self.mm_filter, label="filter start", color="blue")
+        plt.plot(
+            factor * np.concatenate([np.zeros(n_inprod - 1), self.mm_filter]),
+            label="filter end",
+            color="red",
+        )
         plt.legend()
         plt.show()
 
-
-    def perform_tmm(self, signal, index: int=None):
+    def perform_tmm(self, signal, index: int = None):
         """Perform temporal mode matching with complex signal.
 
         1. Use abs(signal) and filter to find the best alignment.
@@ -539,7 +540,7 @@ class TemporalModeMatcher:
         if index is None:
             # match magnitudes to find best alignment
             correlation_result = np.correlate(
-                np.abs(signal), self.mm_filter, mode='valid'
+                np.abs(signal), self.mm_filter, mode="valid"
             )
             best_idx = np.argmax(correlation_result)
         else:
