@@ -62,6 +62,7 @@ def docstring_example():
 __all__ = [
     ## Evaluate moments
     'approx_complex_2dint',
+    'eva_moment',
     'eva_moments',
     'eva_qubit_moments',
 
@@ -149,6 +150,7 @@ def eva_moments(hist: Histogram, highest_order=4, G_power: float=1) -> complex:
     >>> moments['s01']
     """
     moments = {}
+    moments[f's00'] = 1 # normalization
     for order in range(1, highest_order + 1):
         for n in range(order, -1, -1):  # Iterate over (n, m) pairs
             m = order - n

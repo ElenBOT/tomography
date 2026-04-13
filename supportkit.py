@@ -157,9 +157,13 @@ def plot_moments_bar_diagram(
 
     Args:
         moments (dict): dictionary of moments e.g. {'a00': value, 'a01': value, ...}
+                        or with 's' prefix e.g. {'s00': value, 's01': value, ...}
         title (str): title of the plot
         phase_coloring (bool): if true, plot in phase coloring. else in magnitude only
     """
+    # Detect prefix from keys, default to 'a'
+    prefix = next((k[0] for k in moments if len(k) >= 3), 'a')
+
     # ensure complex number, user might input sympy expression
     for key, value in moments.items():
         moments[key] = complex(value)
@@ -168,15 +172,15 @@ def plot_moments_bar_diagram(
     for n in range(5):
         for m in range(5):
             if n + m < 5:
-                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', .0)
+                moments[f'{prefix}{n}{m}'] = moments.get(f'{prefix}{n}{m}', .0)
 
     # Build lower-triangular moment array
     moment_array = np.array([
-        [moments['a04'],             0,               0,              0,              0],
-        [moments['a03'], moments['a13'],              0,              0,              0],
-        [moments['a02'], moments['a12'], moments['a22'],              0,              0],
-        [moments['a01'], moments['a11'], moments['a21'], moments['a31'],              0],
-        [moments['a00'], moments['a10'], moments['a20'], moments['a30'], moments['a40']],
+        [moments[f'{prefix}04'],                0,                  0,                  0,                  0],
+        [moments[f'{prefix}03'], moments[f'{prefix}13'],            0,                  0,                  0],
+        [moments[f'{prefix}02'], moments[f'{prefix}12'], moments[f'{prefix}22'],         0,                  0],
+        [moments[f'{prefix}01'], moments[f'{prefix}11'], moments[f'{prefix}21'], moments[f'{prefix}31'],     0],
+        [moments[f'{prefix}00'], moments[f'{prefix}10'], moments[f'{prefix}20'], moments[f'{prefix}30'], moments[f'{prefix}40']],
     ])
 
     n, m = moment_array.shape
@@ -196,7 +200,6 @@ def plot_moments_bar_diagram(
     else:
         colors = np.tile(np.array([1.0, 0.0, 0.0, 0.5]), (len(dz), 1))  # red with alpha 0.5
 
-
     # Compute mask for which bars should be hidden (n + m > 4)
     index_mask = np.zeros((5, 5), dtype=bool)
     for n in range(5):
@@ -210,7 +213,7 @@ def plot_moments_bar_diagram(
     edgecolors = np.where(index_mask, '#F2F2F2', 'black')
 
     # Apply alpha to colors
-    colors[:, -1] = alphas  # Modify alpha channel of RGBA colors
+    colors[:, -1] = alphas
 
     # Plot
     fig = plt.figure()
@@ -233,7 +236,6 @@ def plot_moments_bar_diagram(
                        rotation=60, ha='right')
 
     if phase_coloring:
-        # Add colorbar for phase
         mappable = ScalarMappable(cmap='hsv', norm=norm)
         mappable.set_array([])
         cbar = plt.colorbar(mappable, ax=ax, shrink=0.7, pad=0.1)
@@ -250,25 +252,28 @@ def plot_moments_bar_diagram_flat(
         title='title', 
         highest_order: int = 4,
     ):
-    """Plot moment bar diagrme for real and imag part, as 2d bar diagrame.
+    """Plot moment bar diagram for real and imag part, as 2d bar diagram.
     (Generate by AI)
 
     Example usage:
     >>> plot_moments_bar_diagram_flat(moments, title='moments', highest_order=6)
     """
+    # Detect prefix from keys, default to 'a'
+    prefix = next((k[0] for k in moments if len(k) >= 3), 'a')
+
     # ensure complex number, user might input sympy expression
     for key, value in moments.items():
         moments[key] = complex(value)
 
     # Fill missing moments with 0
-    for n in range(highest_order+1):
-        for m in range(highest_order+1):
-            if n + m < highest_order+1:
-                moments[f'a{n}{m}'] = moments.get(f'a{n}{m}', .0)
+    for n in range(highest_order + 1):
+        for m in range(highest_order + 1):
+            if n + m < highest_order + 1:
+                moments[f'{prefix}{n}{m}'] = moments.get(f'{prefix}{n}{m}', .0)
 
     # Filter and sort keys by total order (n + m), then by n
     sorted_items = sorted(
-        [(k, v) for k, v in moments.items() if int(k[1]) + int(k[2]) <= highest_order],
+        [(k, v) for k, v in moments.items() if k[0] == prefix and int(k[1]) + int(k[2]) <= highest_order],
         key=lambda kv: (int(kv[0][1]) + int(kv[0][2]), int(kv[0][1]))
     )
 
@@ -285,10 +290,9 @@ def plot_moments_bar_diagram_flat(
     total_orders = [int(label[0]) + int(label[1]) for label in labels]
     prev_order = total_orders[0]
     for i in range(1, len(total_orders)):
-        current_order = total_orders[i]
-        if current_order != prev_order:
+        if total_orders[i] != prev_order:
             plt.axvline(x=i - 0.5, color='gray', linestyle='--', linewidth=1)
-            prev_order = current_order
+            prev_order = total_orders[i]
 
     plt.xticks(x, labels)
     plt.title(title)
@@ -298,6 +302,7 @@ def plot_moments_bar_diagram_flat(
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.xticks(x, labels, rotation=90)
     plt.show()
+
 
 
 def plot_complex_2dfunc(func_value2d: np.ndarray, 
