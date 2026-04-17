@@ -441,7 +441,7 @@ class TemporalModeMatcher:
     >>> # set filter to be the averaged signal
     >>> tmm = TemporalModeMatcher(fs=fs)
     >>> tmm.regist_filter(baseband)
-    >>> tmm.regist_filter(tmm.pad_or_trim_filter())
+    >>> tmm.pad_or_trim_filter()
     >>> tmm.plot_tmm_info(signal)
     >>> # perform tmm to signal that is with noise
     >>> s = tmm.perform_tmm(signal)
@@ -470,11 +470,11 @@ class TemporalModeMatcher:
         self.filter_len = len(self.mm_filter)
 
     def pad_or_trim_filter(self, pad_front=-40, pad_end=-40):
-        """Pad zero or trim some points from the registed filter and return it.
+        """Pad zero or trim some points from the registed filter and re-regist it.
 
         Example usage:
         >>> tmmer.regist_filter(avg_sig)
-        >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
+        >>> tmmer.pad_or_trim_filter()
         >>> tmmer.plot_tmm_info(signal)
         """
         trimed = copy(self.mm_filter)
@@ -490,7 +490,8 @@ class TemporalModeMatcher:
             trimed = np.concatenate([trimed, np.zeros(pad_end)])
         elif pad_end < 0:
             trimed = trimed[:pad_end]  # Remove from end
-
+            
+        self.regist_filter(trimed)
         return trimed
 
     def plot_tmm_info(self, signal):
