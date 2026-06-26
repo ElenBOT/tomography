@@ -47,7 +47,8 @@ class Histogram:
 
     Methods:
         `accumulate_to_histogram`: Accumulate measurement data to histogram. S = X + iP
-        `get_normalized_histogram`: Return histogram with maxima value be 1.
+        `get_top_normalized_histogram`: Return histogram with maxima value be 1.
+        `get_int_normalized_histogram`: Return histogram with its integral value be 1.
         `plot`: Plot normalized histogram.
         `save_to_csv`: Save histogram to csv, also include comment.
 
@@ -56,7 +57,7 @@ class Histogram:
 
     Example usage:
     >>> import numpy as np
-    >>> from measurekit import Histogram
+    >>> from tomography.measurekit import Histogram
     >>> # make histogram
     >>> his = Histogram(n_row_col=101, max_x_p=5.0)
     >>> # accumulate data
@@ -66,7 +67,7 @@ class Histogram:
     >>>     s = x + 1j*p
     >>>     his.accumulate_to_histogram(s)
     >>> # plot and get data
-    >>> D, S = his.get_normalized_histogram(), his.S
+    >>> D, S = his.get_top_normalized_histogram(), his.S
     >>> his.plot("Random Gaussian Samples in Phase Space")
     """
 
@@ -98,8 +99,8 @@ class Histogram:
         max_val = np.max(self.D)
         return self.D / max_val if max_val != 0 else self.D
 
-    def get_sum_normalized_histogram(self):
-        """Return histogram with its intergral value be 1."""
+    def get_int_normalized_histogram(self):
+        """Return histogram with its integral value be 1."""
         from .postprocess import approx_complex_2dint
 
         int_val = approx_complex_2dint(self.D, self.S)
@@ -265,7 +266,7 @@ class Demodulator:
     Example usage:
     >>> import numpy as np
     >>> from matplotlib import pyplot as plt
-    >>> from measurekit import Demodulator
+    >>> from tomography.measurekit import Demodulator
     >>> # make x(t) = A(t) * carrier
     >>> fc, fs = 50e6, 1e9
     >>> t = np.arange(1000) / fs
@@ -274,14 +275,13 @@ class Demodulator:
     >>> signal = baseband * carrier
     >>> # perform demod from x(t) to obtain A(t)
     >>> de = Demodulator(fc=fc, fs=fs, n_samples=len(signal))
-    >>> demoded = de.fast_shift_demod(signal) # should equal to baseband
+    >>> demoded = de.fast_boxcar_demod(signal) # should equal to baseband
     >>> # plot
     >>> plt.plot(np.abs(demoded), label='demoded')
     >>> plt.plot(baseband, '--', label='baseband')
     >>> plt.plot(signal, label='signal', alpha=0.5)
     >>> plt.legend()
     >>> plt.show()
-
     """
 
     ## initialization
@@ -425,8 +425,8 @@ class TemporalModeMatcher:
     Example usage:
     >>> import numpy as np
     >>> from matplotlib import pyplot as plt
-    >>> from measurekit import TemporalModeMatcher
-    >>> # make a baseband signal and one with noise
+    >>> from tomography.measurekit import TemporalModeMatcher
+    >>> ## make a baseband signal and one with noise
     >>> fc, fs = 50e6, 1e9
     >>> t = np.arange(1000) / fs
     >>> baseband = np.concatenate([np.exp(t/2e-7), np.zeros(200)]) / 1e8
@@ -438,16 +438,25 @@ class TemporalModeMatcher:
     >>>     )
     >>>     return signal + noise
     >>> signal = add_noise(baseband)
-    >>> # set filter to be the averaged signal
+    >>>
+    >>> ## set filter to be the averaged signal
     >>> tmm = TemporalModeMatcher(fs=fs)
     >>> tmm.regist_filter(baseband)
-    >>> tmm.pad_or_trim_filter()
+    >>> tmm.pad_or_trim_filter(-40, -40) # cut 40 points at each end
+    >>> # tmm.pad_or_trim_filter(40, 40) # if pad zero again, it does 1 inner product only
     >>> tmm.plot_tmm_info(signal)
-    >>> # perform tmm to signal that is with noise
-    >>> s = tmm.perform_tmm(signal)
-    >>> print('tmm result:', s)
+    >>>
+    >>> ## perform tmm to signal, obtain matced value and matched index
+    >>> s, matching_index = tmm.perform_tmm(signal)
+    >>> print('tmm result (convolved):', s)
+    >>> print('matching index:', matching_index)
+    >>>
+    >>> ## use the matched index to perform tmm again, faster for no convovle this time
+    >>> s, _ = tmm.perform_tmm(signal, index=matching_index)
+    >>> print('tmm result (assigned):', s)
     """
 
+    ## initialization
     def __init__(self, fs):
         """Set sampling rate.
 
@@ -459,6 +468,7 @@ class TemporalModeMatcher:
         """
         self.fs = fs
 
+    ## regist filter, with normalization
     def regist_filter(self, mm_filter):
         """Regist a mode matching filter, it will normalize it for you.
 
@@ -469,13 +479,15 @@ class TemporalModeMatcher:
         self.mm_filter = np.ascontiguousarray(self.mm_filter)
         self.filter_len = len(self.mm_filter)
 
+    ## pad or trim filter, to make it more suitable for tmm, and re-regist it to ensure normalization
     def pad_or_trim_filter(self, pad_front=-40, pad_end=-40):
-        """Pad zero or trim some points from the registed filter and re-regist it.
+        """Pad zero or trim some points from the registed filter, return it and re-register it.
 
         Example usage:
-        >>> tmmer.regist_filter(avg_sig)
-        >>> tmmer.pad_or_trim_filter()
-        >>> tmmer.plot_tmm_info(signal)
+        >>> tmm.regist_filter(avg_sig)
+        >>> tmm.pad_or_trim_filter(-40, -40) # cut 40 points at each end
+        >>> tmm.pad_or_trim_filter(40, 40)   # pad 40 points at each end to zero
+        >>> tmm.plot_tmm_info(avg_sig)
         """
         trimed = copy(self.mm_filter)
 
@@ -490,17 +502,20 @@ class TemporalModeMatcher:
             trimed = np.concatenate([trimed, np.zeros(pad_end)])
         elif pad_end < 0:
             trimed = trimed[:pad_end]  # Remove from end
-            
-        self.regist_filter(trimed)
+
+        self.regist_filter(
+            trimed
+        )  # Re-register the modified filter to ensure normalization
         return trimed
 
+    # plot the number of inner product and the convolution window, to help choose the pad/trim parameters
     def plot_tmm_info(self, signal):
         """Print and plot temporal mode matching convolution window.
 
         Example usage:
-        >>> tmmer.regist_filter(avg_sig)
-        >>> tmmer.regist_filter(tmmer.pad_or_trim_filter())
-        >>> tmmer.plot_tmm_info(signal)
+        >>> tmm.regist_filter(avg_sig)
+        >>> tmm.pad_or_trim_filter(-40, -40)
+        >>> tmm.plot_tmm_info(signal)
         """
         n_inprod = len(signal) - len(self.mm_filter) + 1
         if n_inprod <= 0:
